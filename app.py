@@ -314,79 +314,149 @@ if pagina == "🏠  Visão Geral":
 # CADASTRO E REGULARIZAÇÃO
 # ══════════════════════════════════════════════════════════════════════════════
 elif pagina == "📋  Cadastro e Regularização":
+
+    # ── 5 Filtros ──────────────────────────────────────────────────────────
     with st.expander("🔎 Filtros", expanded=True):
-        fc1,fc2,fc3,fc4 = st.columns(4)
-        f_esf = fc1.multiselect("Esfera",  sorted(base["Esfera"].dropna().unique()),
-                                default=sorted(base["Esfera"].dropna().unique()), key="cr_e")
-        f_bio = fc2.multiselect("Bioma",   sorted(base["Bioma"].dropna().unique()),
-                                default=sorted(base["Bioma"].dropna().unique()), key="cr_b")
-        f_grp = fc3.multiselect("Grupo",   sorted(base["Grupo"].dropna().unique()),
-                                default=sorted(base["Grupo"].dropna().unique()), key="cr_g")
-        f_cat = fc4.multiselect("Categoria", sorted(base["Categoria SNUC"].dropna().unique()),
-                                default=sorted(base["Categoria SNUC"].dropna().unique()), key="cr_c")
+        fc1,fc2,fc3,fc4,fc5 = st.columns(5)
+        f_bio = fc1.multiselect("Bioma",
+                    sorted(base["Bioma"].dropna().unique()),
+                    default=sorted(base["Bioma"].dropna().unique()), key="cr_b")
+        f_tip = fc2.multiselect("Tipo",
+                    sorted(base["NomenclaturaSNUC"].dropna().unique()),
+                    default=sorted(base["NomenclaturaSNUC"].dropna().unique()), key="cr_t")
+        f_grp = fc3.multiselect("Grupo",
+                    sorted(base["Grupo"].dropna().unique()),
+                    default=sorted(base["Grupo"].dropna().unique()), key="cr_g")
+        f_esf = fc4.multiselect("Esfera",
+                    sorted(base["Esfera"].dropna().unique()),
+                    default=sorted(base["Esfera"].dropna().unique()), key="cr_e")
+        f_cat = fc5.multiselect("Categoria SNUC",
+                    sorted(base["Categoria SNUC"].dropna().unique()),
+                    default=sorted(base["Categoria SNUC"].dropna().unique()), key="cr_c")
+
     df = base.copy()
-    if f_esf: df = df[df["Esfera"].isin(f_esf)]
     if f_bio: df = df[df["Bioma"].isin(f_bio)]
+    if f_tip: df = df[df["NomenclaturaSNUC"].isin(f_tip)]
     if f_grp: df = df[df["Grupo"].isin(f_grp)]
+    if f_esf: df = df[df["Esfera"].isin(f_esf)]
     if f_cat: df = df[df["Categoria SNUC"].isin(f_cat)]
 
-    c1,c2,c3,c4,c5 = st.columns(5)
-    kpi(c1, len(df), "Total de UCs")
-    kpi(c2, f"{df['Área poligonal (ha)'].sum():,.0f}", "Área Total (ha)", "am")
-    kpi(c3, df["CNUC_b"].sum(), "Cadastradas no CNUC", "az")
-    kpi(c4, df["Shapefile dos limites_b"].sum(), "Com Shapefile", "")
-    kpi(c5, df["Plano de Manejo_b"].sum(), "Com Plano de Manejo", "la")
+    # ── 4 KPI cards ────────────────────────────────────────────────────────
+    k1,k2,k3,k4 = st.columns(4)
+    kpi(k1, f"{df['Área poligonal (ha)'].sum():,.2f}", "Áreas Protegidas (ha)")
+    kpi(k2, df["CNUC_b"].sum() + df[df["Cadastro do SEUC/RS"]=="Sim"].shape[0]//2,
+        "Unidades de Conservação", "am")
+    area_nat = df[df["ANP_UC"]=="Área natural protegida"].shape[0]
+    kpi(k3, area_nat, "Áreas Naturais Protegidas", "az")
+    kpi(k4, len(df), "Áreas Protegidas no RS", "la")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    g1,g2,g3 = st.columns(3)
-    with g1:
-        sec("Por Esfera")
-        d = df["Esfera"].value_counts().reset_index()
-        fig = px.pie(d, names="Esfera", values="count", color="Esfera",
-                     color_discrete_map=COR_ESFERA, hole=0.5)
-        fig.update_traces(textinfo="percent+value")
-        fig.update_layout(**LAYOUT, height=220, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
-    with g2:
-        sec("Por Grupo SNUC")
-        d = df["Grupo"].value_counts().reset_index()
-        fig = px.pie(d, names="Grupo", values="count", color="Grupo",
-                     color_discrete_map=COR_GRUPO, hole=0.5)
-        fig.update_traces(textinfo="percent+value", textfont_size=9)
-        fig.update_layout(**LAYOUT, height=220, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
-    with g3:
-        sec("Por Bioma")
-        d = df["Bioma"].value_counts().reset_index()
-        fig = px.pie(d, names="Bioma", values="count", color="Bioma",
-                     color_discrete_map=COR_BIOMA, hole=0.5)
-        fig.update_traces(textinfo="percent+value", textfont_size=9)
-        fig.update_layout(**LAYOUT, height=220, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
 
-    g4,g5 = st.columns(2)
-    with g4:
+    # ── Linha 1: 5 roscas ──────────────────────────────────────────────────
+    sec("Distribuição por categoria")
+    r1,r2,r3,r4,r5 = st.columns(5)
+
+    def rosca(col, titulo, serie, mapa_cores=None):
+        d = serie.value_counts().reset_index()
+        d.columns = ["cat","n"]
+        total = d["n"].sum()
+        kwargs = dict(color="cat", color_discrete_map=mapa_cores) if mapa_cores else \
+                 dict(color_discrete_sequence=["#2f4c9c","#2E7D32","#bf5b17","#7f8080","#f9b60e"])
+        fig = px.pie(d, names="cat", values="n", hole=0.55, **kwargs)
+        fig.update_traces(
+            textinfo="none",
+            hovertemplate="<b>%{label}</b><br>%{value} (%{percent})<extra></extra>",
+        )
+        # Anotação central
+        fig.add_annotation(text=f"<b>{total}</b>", x=0.5, y=0.5,
+                           font_size=18, showarrow=False, font_color=VERDE)
+        fig.update_layout(**LAYOUT, height=200,
+                          showlegend=True,
+                          legend=dict(orientation="h", y=-0.25, font_size=9,
+                                      x=0.5, xanchor="center"))
+        col.markdown(f"<div class='sec-title' style='font-size:0.78rem;'>{titulo}</div>",
+                     unsafe_allow_html=True)
+        col.plotly_chart(fig, use_container_width=True)
+
+    rosca(r1, "Esfera", df["Esfera"],
+          {"Federal":"#2f4c9c","Estadual":"#2E7D32","Municipal":"#bf5b17"})
+    rosca(r2, "SEUC", df["Cadastro do SEUC/RS"],
+          {"Sim":"#2E7D32","Não":"#CFD8DC"})
+    rosca(r3, "CNUC", df["CNUC"],
+          {"Sim":"#2E7D32","Não":"#CFD8DC"})
+    rosca(r4, "SNUC", df["CadastroSNUC"].map({True:"Sim",False:"Não"}) if df["CadastroSNUC"].dtype==bool
+                      else df["CadastroSNUC"],
+          {"Sim":"#2E7D32","Não":"#CFD8DC"})
+    rosca(r5, "Grupo", df["Grupo"],
+          {"Proteção Integral":"#1A5C2A","Uso Sustentável":"#f9b60e","Não se aplica":"#7f8080"})
+
+    # ── Linha 2: barras SNUC + barras Biomas ───────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    g1, g2 = st.columns(2)
+
+    with g1:
         sec("Categoria SNUC")
         d = df["Categoria SNUC"].value_counts().reset_index()
-        fig = px.bar(d, x="Categoria SNUC", y="count", color_discrete_sequence=[VERDE2])
-        fig.update_traces(texttemplate="%{y}", textposition="outside")
-        fig.update_layout(**LAYOUT, height=230, xaxis_title="", yaxis_title="Qtd")
-        st.plotly_chart(fig, use_container_width=True)
-    with g5:
-        sec("Criação por ano e esfera")
-        d = df.dropna(subset=["Ano de criação"]).groupby(
-            ["Ano de criação","Esfera"]).size().reset_index(name="n")
-        fig = px.area(d, x="Ano de criação", y="n", color="Esfera",
-                      color_discrete_map=COR_ESFERA)
-        fig.update_layout(**LAYOUT, height=230, xaxis_title="Ano", yaxis_title="Criadas",
-                          legend=dict(orientation="h", y=1.08, font_size=10))
+        d.columns = ["Categoria","n"]
+        d = d.sort_values("n", ascending=True)
+        fig = px.bar(d, x="n", y="Categoria", orientation="h",
+                     color_discrete_sequence=[VERDE2])
+        fig.update_traces(texttemplate="%{x}", textposition="outside")
+        fig.update_layout(**LAYOUT, height=280,
+                          xaxis_title="", yaxis_title="",
+                          xaxis=dict(showgrid=False, showticklabels=False))
         st.plotly_chart(fig, use_container_width=True)
 
+    with g2:
+        sec("Biomas")
+        d = df["Bioma"].value_counts().reset_index()
+        d.columns = ["Bioma","n"]
+        d = d.sort_values("n", ascending=True)
+        fig = px.bar(d, x="n", y="Bioma", orientation="h",
+                     color="Bioma", color_discrete_map=COR_BIOMA)
+        fig.update_traces(texttemplate="%{x}", textposition="outside")
+        fig.update_layout(**LAYOUT, height=280, showlegend=False,
+                          xaxis_title="", yaxis_title="",
+                          xaxis=dict(showgrid=False, showticklabels=False))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── Tabela ─────────────────────────────────────────────────────────────
     sec("Listagem de UCs")
-    cols = ["Código","Nome","Bioma","Grupo","Esfera","Categoria SNUC",
-            "Ano de criação","Área poligonal (ha)","CNUC","Plano de Manejo","Conselho Gestor"]
-    st.dataframe(df[[c for c in cols if c in df.columns]].reset_index(drop=True),
-                 use_container_width=True, height=280)
+    cols_tab = ["Nome","Bioma","Esfera","Plano de Manejo","Cadastro do SEUC/RS",
+                "CNUC","Grupo","Área poligonal (ha)","Órgão gestor"]
+    st.dataframe(
+        df[[c for c in cols_tab if c in df.columns]].reset_index(drop=True),
+        use_container_width=True, height=220
+    )
+
+    # ── Gráfico temporal: área acumulada ───────────────────────────────────
+    sec("Área acumulada (ha)")
+    df_t = df.dropna(subset=["Ano de criação"]).copy()
+    df_t["Ano de criação"] = df_t["Ano de criação"].astype(int)
+    df_t = df_t.sort_values("Ano de criação")
+    df_t["Área acumulada"] = df_t["Área poligonal (ha)"].cumsum()
+    anos_grp = df_t.groupby("Ano de criação")["Área acumulada"].max().reset_index()
+    fig_t = px.area(anos_grp, x="Ano de criação", y="Área acumulada",
+                    color_discrete_sequence=[VERDE2],
+                    labels={"Área acumulada":"Área (ha)","Ano de criação":"Ano"})
+    fig_t.update_traces(
+        line_color=VERDE,
+        fillcolor="rgba(46,125,50,0.18)",
+        hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>",
+    )
+    # Anotações nos picos visíveis
+    for _, row in anos_grp[anos_grp["Ano de criação"].isin(
+            [1950,1960,1970,1980,1990,2000,2010,2020])].iterrows():
+        fig_t.add_annotation(
+            x=row["Ano de criação"], y=row["Área acumulada"],
+            text=f"{row['Área acumulada']/1000:.0f} Mil",
+            showarrow=False, yshift=12, font_size=9, font_color="#444"
+        )
+    fig_t.update_layout(**LAYOUT, height=220,
+                        xaxis_title="", yaxis_title="ha",
+                        xaxis=dict(showgrid=False),
+                        yaxis=dict(showgrid=True, gridcolor="#eee"))
+    st.plotly_chart(fig_t, use_container_width=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
