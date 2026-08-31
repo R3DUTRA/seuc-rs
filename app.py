@@ -335,11 +335,17 @@ elif pagina == "🌍  Cobertura Espacial":
         nome = feat["properties"]["name"]
         cor  = CORES_MAPA.get(nome, "#999999")
         geom = feat["geometry"]
-        polys = (geom["coordinates"] if geom["type"] == "Polygon"
-                 else [p for mp in geom["coordinates"] for p in mp])
-        for poly in polys:
-            lons = [pt[0] for pt in poly[0]]
-            lats = [pt[1] for pt in poly[0]]
+        # Normaliza: Polygon → lista de rings, MultiPolygon → achata tudo
+        if geom["type"] == "Polygon":
+            all_rings = geom["coordinates"]
+        else:  # MultiPolygon
+            all_rings = [ring for poly in geom["coordinates"] for ring in poly]
+        polys = [all_rings]  # mantém compatibilidade com loop abaixo
+        for poly in [all_rings]:
+            for ring in poly:
+                # Coordenadas podem ser [lon, lat] ou [lon, lat, alt]
+                lons = [pt[0] for pt in ring]
+                lats = [pt[1] for pt in ring]
             fig_map.add_trace(go.Scattergeo(
                 lon=lons, lat=lats, mode="lines",
                 fill="toself", fillcolor=cor + "99",
