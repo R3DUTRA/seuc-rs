@@ -33,12 +33,29 @@ COR_BIOMA  = {
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <style>
+  /* Fundo geral claro */
+  .main {{ background-color: #EBEBEB !important; }}
+  .block-container {{ background-color: #EBEBEB !important; padding-top: 0.8rem !important; }}
+
+  /* Sidebar branca com borda direita verde */
   [data-testid="stSidebar"] {{
-      background: linear-gradient(180deg, {VERDE} 0%, #0f3d1a 100%) !important;
+      background-color: {BRANCO} !important;
+      border-right: 4px solid {VERDE} !important;
   }}
-  [data-testid="stSidebar"] * {{ color: {BRANCO} !important; }}
-  [data-testid="stSidebar"] .stRadio label {{ font-size: 0.88rem; }}
-  .block-container {{ padding-top: 0.8rem !important; }}
+  [data-testid="stSidebar"] * {{ color: {VERDE} !important; }}
+  [data-testid="stSidebar"] .stRadio label {{
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #333 !important;
+      padding: 4px 0;
+  }}
+  [data-testid="stSidebar"] .stRadio [aria-checked="true"] + label,
+  [data-testid="stSidebar"] .stRadio [data-checked="true"] label {{
+      color: {VERDE} !important;
+      font-weight: 700 !important;
+  }}
+
+  /* Header topo */
   .header-bar {{
       background: {VERDE};
       color: {BRANCO};
@@ -50,26 +67,40 @@ st.markdown(f"""
       text-align: center;
       letter-spacing: 0.4px;
   }}
+
+  /* KPI cards */
   .kpi-wrap {{
       background: {BRANCO};
       border-radius: 8px;
       padding: 14px 16px 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
       border-top: 4px solid {VERDE2};
       height: 100%;
   }}
   .kpi-wrap.am {{ border-top-color: {AMARELO}; }}
-  .kpi-wrap.az {{ border-top-color: #1565C0; }}
-  .kpi-wrap.la {{ border-top-color: #E65100; }}
+  .kpi-wrap.az {{ border-top-color: #2f4c9c; }}
+  .kpi-wrap.la {{ border-top-color: #bf5b17; }}
   .kpi-wrap.ro {{ border-top-color: #C62828; }}
   .kpi-num  {{ font-size: 2rem; font-weight: 800; color: {VERDE}; line-height: 1.1; }}
   .kpi-lbl  {{ font-size: 0.74rem; color: #666; margin-top: 3px; }}
+
+  /* Títulos de seção */
   .sec-title {{
       font-size: 0.92rem; font-weight: 700; color: {VERDE};
       border-bottom: 2px solid {AMARELO};
       padding-bottom: 3px; margin: 16px 0 8px;
   }}
-  .main {{ background-color: {CINZA}; }}
+
+  /* Gráficos e tabelas com fundo branco */
+  [data-testid="stPlotlyChart"] {{
+      background: {BRANCO};
+      border-radius: 8px;
+      padding: 4px;
+  }}
+  [data-testid="stDataFrame"] {{
+      background: {BRANCO};
+      border-radius: 8px;
+  }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -120,16 +151,16 @@ LAYOUT = dict(margin=dict(t=6,b=6,l=6,r=6), paper_bgcolor="white",
 with st.sidebar:
     st.markdown(f"""
     <div style='text-align:center;padding:20px 0 12px'>
-      <div style='font-size:1.8rem;font-weight:900;color:{AMARELO};letter-spacing:2px;'>SEUC/RS</div>
-      <div style='font-size:0.65rem;color:#bbb;margin-top:2px;line-height:1.5;'>
+      <div style='font-size:1.8rem;font-weight:900;color:{VERDE};letter-spacing:2px;'>SEUC/RS</div>
+      <div style='font-size:0.65rem;color:#888;margin-top:2px;line-height:1.5;'>
         Sistema Estadual de<br>Unidades de Conservação<br>Rio Grande do Sul
       </div>
     </div>
-    <hr style='border-color:#ffffff22;margin:4px 0 12px'>
+    <hr style='border-color:#e0e0e0;margin:4px 0 12px'>
     """, unsafe_allow_html=True)
 
     pagina = st.radio("", [
-        "🏠  Menu / Visão Geral",
+        "🏠  Visão Geral",
         "📋  Cadastro e Regularização",
         "🌍  Cobertura Espacial",
         "⚙️  Implementação e Efetividade",
@@ -137,8 +168,8 @@ with st.sidebar:
     ], label_visibility="collapsed")
 
     st.markdown(f"""
-    <hr style='border-color:#ffffff22;margin:16px 0 8px'>
-    <div style='font-size:0.6rem;color:#888;text-align:center;padding-bottom:10px;'>
+    <hr style='border-color:#e0e0e0;margin:16px 0 8px'>
+    <div style='font-size:0.6rem;color:#999;text-align:center;padding-bottom:10px;'>
       SEMA-RS &nbsp;·&nbsp; Dados: SEUC/RS<br>v1.0
     </div>""", unsafe_allow_html=True)
 
@@ -153,7 +184,7 @@ st.markdown("""
 # ══════════════════════════════════════════════════════════════════════════════
 # MENU
 # ══════════════════════════════════════════════════════════════════════════════
-if pagina == "🏠  Menu / Visão Geral":
+if pagina == "🏠  Visão Geral":
 
     # Banner principal — fiel ao Power BI (fundo vermelho + aba verde SEUC/RS)
     st.markdown(f"""
