@@ -154,65 +154,129 @@ st.markdown("""
 # MENU
 # ══════════════════════════════════════════════════════════════════════════════
 if pagina == "🏠  Menu / Visão Geral":
+
+    # Banner principal — fiel ao Power BI (fundo vermelho + aba verde SEUC/RS)
     st.markdown(f"""
-    <div style='background:linear-gradient(135deg,{VERDE} 55%,#2E7D32);
-                border-radius:10px;padding:28px 36px;margin-bottom:20px;color:white;'>
-      <div style='font-size:.85rem;opacity:.75;margin-bottom:4px;'>Plataforma oficial de dados do</div>
-      <div style='font-size:1.7rem;font-weight:900;line-height:1.2;'>
-        Sistema Estadual de Unidades de Conservação<br>
-        <span style='color:{AMARELO};font-size:2.1rem;'>Rio Grande do Sul</span>
+    <div style='display:flex;align-items:stretch;margin-bottom:32px;
+                box-shadow:0 4px 16px rgba(0,0,0,0.13);border-radius:6px;overflow:hidden;'>
+      <div style='background:#CC0000;padding:28px 32px;flex:1;'>
+        <div style='font-size:1rem;font-weight:600;color:white;line-height:1.3;'>
+          Plataforma oficial de dados do<br>
+          Sistema Estadual de Unidades de Conservação do
+        </div>
+        <div style='font-size:2.4rem;font-weight:900;color:white;line-height:1.1;margin-top:4px;'>
+          Rio Grande do Sul
+        </div>
+        <div style='height:5px;background:{AMARELO};margin-top:14px;border-radius:2px;'></div>
       </div>
-      <div style='margin-top:12px;font-size:.82rem;opacity:.8;'>
-        {len(base)} unidades de conservação catalogadas &nbsp;·&nbsp; Dados atualizados 2024
+      <div style='background:{VERDE};writing-mode:vertical-rl;text-orientation:mixed;
+                  transform:rotate(180deg);padding:18px 14px;
+                  font-size:1.5rem;font-weight:900;color:white;letter-spacing:3px;
+                  display:flex;align-items:center;justify-content:center;min-width:64px;'>
+        SEUC/RS
       </div>
-    </div>""", unsafe_allow_html=True)
+    </div>
 
-    c1,c2,c3,c4 = st.columns(4)
-    kpi(c1, len(base), "Unidades de Conservação")
-    kpi(c2, f"{base['Área poligonal (ha)'].sum():,.0f} ha", "Área Total", "am")
-    kpi(c3, base["Plano de Manejo_b"].sum(), "Com Plano de Manejo", "az")
-    kpi(c4, base["Conselho Gestor_b"].sum(), "Com Conselho Gestor", "la")
+    <style>
+    .card-menu {{
+        background: white;
+        border-radius: 12px;
+        border: 1.5px solid #e0e0e0;
+        padding: 32px 24px 24px;
+        text-align: center;
+        transition: box-shadow 0.25s, border-color 0.25s;
+        cursor: default;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+    }}
+    .card-menu:hover {{
+        box-shadow: 0 6px 24px rgba(26,92,42,0.15);
+        border-color: {VERDE};
+    }}
+    .card-menu .icone {{
+        font-size: 3.5rem;
+        margin-bottom: 14px;
+        display: block;
+    }}
+    .card-menu .titulo {{
+        font-size: 1rem;
+        font-weight: 800;
+        color: {VERDE};
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+    }}
+    .card-menu .texto {{
+        font-size: 0.82rem;
+        color: #444;
+        line-height: 1.65;
+        text-align: justify;
+        display: none;
+    }}
+    .card-menu:hover .texto {{
+        display: block;
+    }}
+    .card-menu:hover .icone {{
+        display: none;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    g1,g2,g3 = st.columns(3)
+    # 3 cards lado a lado
+    c1, c2, c3 = st.columns(3)
 
-    with g1:
-        sec("UCs por Esfera")
-        d = base["Esfera"].value_counts().reset_index()
-        fig = px.pie(d, names="Esfera", values="count", color="Esfera",
-                     color_discrete_map=COR_ESFERA, hole=0.48)
-        fig.update_traces(textinfo="percent+label", textfont_size=11)
-        fig.update_layout(**LAYOUT, height=230, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+    with c1:
+        st.markdown(f"""
+        <div class='card-menu'>
+          <span class='icone'>🌿</span>
+          <div class='titulo'>SEUC/RS</div>
+          <div class='texto'>
+            Este painel é resultado da elaboração do Plano do Sistema Estadual de Unidades de
+            Conservação do Rio Grande do Sul, iniciativa coordenada pela SEMA que possibilitou
+            a organização e disponibilização pública de dados da relação de Unidades de
+            Conservação e outras áreas naturais protegidas existentes no Estado. Esta plataforma
+            está integrada ao Cadastro do SEUC/RS mas inclui também em sua amostra UCs e áreas
+            não cadastradas, perpassando as diferentes esferas de governo e reservas particulares
+            do patrimônio natural.
+          </div>
+        </div>""", unsafe_allow_html=True)
 
-    with g2:
-        sec("UCs por Bioma")
-        d = base["Bioma"].value_counts().reset_index()
-        fig = px.bar(d, x="count", y="Bioma", orientation="h",
-                     color="Bioma", color_discrete_map=COR_BIOMA)
-        fig.update_traces(texttemplate="%{x}", textposition="outside")
-        fig.update_layout(**LAYOUT, height=230, showlegend=False,
-                          yaxis_title="", xaxis_title="Qtd")
-        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        st.markdown(f"""
+        <div class='card-menu'>
+          <span class='icone'>⚙️</span>
+          <div class='titulo'>Como Funciona</div>
+          <div class='texto'>
+            Como qualquer base de dados, é necessária a atualização e o preenchimento de lacunas
+            de informação periodicamente. Se você é gestor, proprietário de UC ou área natural
+            protegida do RS ainda não adequada ao SNUC/SEUC ou ainda se tem interesse em
+            cadastrar ou inserir informações oficiais, acesse aqui para entrar em contato.
+          </div>
+        </div>""", unsafe_allow_html=True)
 
-    with g3:
-        sec("UCs por Grupo SNUC")
-        d = base["Grupo"].value_counts().reset_index()
-        fig = px.pie(d, names="Grupo", values="count", color="Grupo",
-                     color_discrete_map=COR_GRUPO, hole=0.48)
-        fig.update_traces(textinfo="percent+label", textfont_size=10)
-        fig.update_layout(**LAYOUT, height=230, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+    with c3:
+        st.markdown(f"""
+        <div class='card-menu'>
+          <span class='icone'>💡</span>
+          <div class='titulo'>Importância</div>
+          <div class='texto'>
+            Esta plataforma tem por finalidade popularizar a consulta e o acesso a dados e
+            informações oficiais e atualizadas das Unidades de Conservação do Estado do Rio
+            Grande do Sul para a sociedade em geral, permitindo a pesquisa e/ou o
+            acompanhamento de indicadores sobre o estado de implementação do SEUC/RS.
+          </div>
+        </div>""", unsafe_allow_html=True)
 
-    sec("Evolução da criação de UCs por ano")
-    d = base.dropna(subset=["Ano de criação"]).groupby(
-        ["Ano de criação","Esfera"]).size().reset_index(name="n")
-    fig = px.area(d, x="Ano de criação", y="n", color="Esfera",
-                  color_discrete_map=COR_ESFERA)
-    fig.update_layout(**LAYOUT, height=240,
-                      xaxis_title="Ano", yaxis_title="UCs criadas",
-                      legend=dict(orientation="h", y=1.08, font_size=11))
-    st.plotly_chart(fig, use_container_width=True)
+    # Rodapé informativo
+    st.markdown(f"""
+    <div style='margin-top:32px;padding:14px 20px;background:#f5f5f5;border-radius:8px;
+                border-left:4px solid {AMARELO};font-size:0.78rem;color:#555;'>
+      <strong style='color:{VERDE};'>SEMA-RS</strong> &nbsp;·&nbsp;
+      Secretaria do Meio Ambiente e Infraestrutura do Rio Grande do Sul &nbsp;·&nbsp;
+      Dados atualizados 2024 &nbsp;·&nbsp; {len(base)} Unidades de Conservação catalogadas
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
