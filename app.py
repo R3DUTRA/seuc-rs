@@ -316,23 +316,38 @@ if pagina == "🏠  Visão Geral":
 elif pagina == "📋  Cadastro e Regularização":
 
     # ── 5 Filtros ──────────────────────────────────────────────────────────
+    # CSS para traduzir textos do multiselect para português
+    st.markdown("""
+    <style>
+    [data-baseweb="select"] [data-testid="stMultiSelectChevronButton"] ~ div span,
+    span[data-testid="stMultiSelectPlaceholder"] { display: none !important; }
+    div[data-baseweb="select"] input::placeholder { color: #999; font-size: 0.8rem; }
+    button[data-testid="stBaseButton-secondary"] span { font-size: 0.75rem; }
+    </style>
+    """, unsafe_allow_html=True)
+
     with st.expander("🔎 Filtros", expanded=True):
         fc1,fc2,fc3,fc4,fc5 = st.columns(5)
         f_bio = fc1.multiselect("Bioma",
                     sorted(base["Bioma"].dropna().unique()),
-                    default=sorted(base["Bioma"].dropna().unique()), key="cr_b")
+                    default=sorted(base["Bioma"].dropna().unique()),
+                    placeholder="Selecione...", key="cr_b")
         f_tip = fc2.multiselect("Tipo",
                     sorted(base["NomenclaturaSNUC"].dropna().unique()),
-                    default=sorted(base["NomenclaturaSNUC"].dropna().unique()), key="cr_t")
+                    default=sorted(base["NomenclaturaSNUC"].dropna().unique()),
+                    placeholder="Selecione...", key="cr_t")
         f_grp = fc3.multiselect("Grupo",
                     sorted(base["Grupo"].dropna().unique()),
-                    default=sorted(base["Grupo"].dropna().unique()), key="cr_g")
+                    default=sorted(base["Grupo"].dropna().unique()),
+                    placeholder="Selecione...", key="cr_g")
         f_esf = fc4.multiselect("Esfera",
                     sorted(base["Esfera"].dropna().unique()),
-                    default=sorted(base["Esfera"].dropna().unique()), key="cr_e")
+                    default=sorted(base["Esfera"].dropna().unique()),
+                    placeholder="Selecione...", key="cr_e")
         f_cat = fc5.multiselect("Categoria SNUC",
                     sorted(base["Categoria SNUC"].dropna().unique()),
-                    default=sorted(base["Categoria SNUC"].dropna().unique()), key="cr_c")
+                    default=sorted(base["Categoria SNUC"].dropna().unique()),
+                    placeholder="Selecione...", key="cr_c")
 
     df = base.copy()
     if f_bio: df = df[df["Bioma"].isin(f_bio)]
@@ -356,7 +371,7 @@ elif pagina == "📋  Cadastro e Regularização":
     sec("Distribuição por categoria")
     r1,r2,r3,r4,r5 = st.columns(5)
 
-    def rosca(col, titulo, serie, mapa_cores=None):
+    def rosca(col, titulo, serie, mapa_cores=None, key=""):
         d = serie.value_counts().reset_index()
         d.columns = ["cat","n"]
         total = d["n"].sum()
@@ -367,7 +382,6 @@ elif pagina == "📋  Cadastro e Regularização":
             textinfo="none",
             hovertemplate="<b>%{label}</b><br>%{value} (%{percent})<extra></extra>",
         )
-        # Anotação central
         fig.add_annotation(text=f"<b>{total}</b>", x=0.5, y=0.5,
                            font_size=18, showarrow=False, font_color=VERDE)
         fig.update_layout(**LAYOUT, height=200,
@@ -376,19 +390,20 @@ elif pagina == "📋  Cadastro e Regularização":
                                       x=0.5, xanchor="center"))
         col.markdown(f"<div class='sec-title' style='font-size:0.78rem;'>{titulo}</div>",
                      unsafe_allow_html=True)
-        col.plotly_chart(fig, use_container_width=True)
+        col.plotly_chart(fig, use_container_width=True, key=f"rosca_{key}")
 
     rosca(r1, "Esfera", df["Esfera"],
-          {"Federal":"#2f4c9c","Estadual":"#2E7D32","Municipal":"#bf5b17"})
+          {"Federal":"#2f4c9c","Estadual":"#2E7D32","Municipal":"#bf5b17"}, key="esfera")
     rosca(r2, "SEUC", df["Cadastro do SEUC/RS"],
-          {"Sim":"#2E7D32","Não":"#CFD8DC"})
+          {"Sim":"#2E7D32","Não":"#CFD8DC"}, key="seuc")
     rosca(r3, "CNUC", df["CNUC"],
-          {"Sim":"#2E7D32","Não":"#CFD8DC"})
+          {"Sim":"#2E7D32","Não":"#CFD8DC"}, key="cnuc")
     rosca(r4, "SNUC", df["CadastroSNUC"].map({True:"Sim",False:"Não"}) if df["CadastroSNUC"].dtype==bool
                       else df["CadastroSNUC"],
-          {"Sim":"#2E7D32","Não":"#CFD8DC"})
+          {"Sim":"#2E7D32","Não":"#CFD8DC"}, key="snuc")
     rosca(r5, "Grupo", df["Grupo"],
-          {"Proteção Integral":"#1A5C2A","Uso Sustentável":"#f9b60e","Não se aplica":"#7f8080"})
+          {"Proteção Integral":"#1A5C2A","Uso Sustentável":"#f9b60e","Não se aplica":"#7f8080"},
+          key="grupo")
 
     # ── Linha 2: barras SNUC + barras Biomas ───────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
