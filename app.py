@@ -31,24 +31,23 @@ COR_BIOMA  = {
 }
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
-# ─── CSS ──────────────────────────────────────────────────────────────────────
-# Carregar background em base64
 import base64
-with open("data/bg.png", "rb") as _f:
+with open("data/bg_v3.jpg", "rb") as _f:
     _bg64 = base64.b64encode(_f.read()).decode()
 
 st.markdown(f"""
 <style>
-  /* ── Fundo com imagem do projeto ── */
-  .main {{
-      background-image: url("data:image/png;base64,{_bg64}") !important;
+  /* ── Fundo com imagem correta ── */
+  [data-testid="stAppViewContainer"] > .main {{
+      background-image: url("data:image/jpeg;base64,{_bg64}") !important;
       background-size: cover !important;
       background-attachment: fixed !important;
-      background-position: center !important;
+      background-position: center top !important;
   }}
   .block-container {{
       background: transparent !important;
       padding-top: 0.8rem !important;
+      max-width: 100% !important;
   }}
 
   /* ── Sidebar branca com borda verde ── */
@@ -72,12 +71,12 @@ st.markdown(f"""
 
   /* ── KPI cards — efeito vidro ── */
   .kpi-wrap {{
-      background: rgba(255,255,255,0.55) !important;
-      backdrop-filter: blur(10px) !important;
-      -webkit-backdrop-filter: blur(10px) !important;
+      background: rgba(255,255,255,0.60) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
       border-radius: 8px;
       padding: 14px 16px 10px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
       border-top: 4px solid {VERDE2};
       height: 100%;
   }}
@@ -95,28 +94,32 @@ st.markdown(f"""
       padding-bottom: 3px; margin: 16px 0 8px;
   }}
 
-  /* ── Gráficos e tabelas — fundo transparente/vidro ── */
+  /* ── Gráficos — fundo vidro ── */
   [data-testid="stPlotlyChart"] > div {{
-      background: rgba(255,255,255,0.45) !important;
-      backdrop-filter: blur(8px) !important;
-      -webkit-backdrop-filter: blur(8px) !important;
+      background: rgba(255,255,255,0.50) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
       border-radius: 10px !important;
       padding: 6px !important;
   }}
+  /* ── Tabelas — fundo vidro ── */
   [data-testid="stDataFrame"] > div {{
-      background: rgba(255,255,255,0.55) !important;
-      backdrop-filter: blur(8px) !important;
-      -webkit-backdrop-filter: blur(8px) !important;
-      border-radius: 10px !important;
-  }}
-
-  /* ── Expander de filtros — vidro ── */
-  [data-testid="stExpander"] {{
-      background: rgba(255,255,255,0.55) !important;
+      background: rgba(255,255,255,0.60) !important;
       backdrop-filter: blur(10px) !important;
       -webkit-backdrop-filter: blur(10px) !important;
+      border-radius: 10px !important;
+  }}
+  /* ── Expander de filtros — vidro ── */
+  [data-testid="stExpander"] {{
+      background: rgba(255,255,255,0.60) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
       border-radius: 8px !important;
-      border: 1px solid rgba(255,255,255,0.7) !important;
+      border: 1px solid rgba(200,200,200,0.5) !important;
+  }}
+  /* ── Remover scroll desnecessário dos gráficos ── */
+  [data-testid="stPlotlyChart"] {{
+      overflow: visible !important;
   }}
 </style>
 """, unsafe_allow_html=True)
@@ -387,7 +390,6 @@ elif pagina == "📋  Cadastro e Regularização":
         d = serie.value_counts().reset_index()
         d.columns = ["cat","n"]
         total = d["n"].sum()
-        # Calcular labels externos: "N (X%)" igual ao Power BI
         d["pct"] = (d["n"] / total * 100).round(0).astype(int)
         d["label"] = d.apply(lambda r: f"{r['n']} ({r['pct']}%)", axis=1)
         kwargs = dict(color="cat", color_discrete_map=mapa_cores) if mapa_cores else \
@@ -399,18 +401,17 @@ elif pagina == "📋  Cadastro e Regularização":
             textposition="outside",
             textfont_size=10,
             hovertemplate="<b>%{label}</b><br>%{value} (%{percent})<extra></extra>",
-            pull=[0.02]*len(d),
+            # sem pull — fatias encostadas
         )
-        # Total no centro — fonte menor
         fig.add_annotation(
             text=f"<b>{total}</b>", x=0.5, y=0.5,
             font=dict(size=13, color=VERDE),
             showarrow=False
         )
         fig.update_layout(
-            **LAYOUT, height=210,
+            **LAYOUT, height=260,
             showlegend=True,
-            legend=dict(orientation="h", y=-0.18, font_size=9,
+            legend=dict(orientation="h", y=-0.12, font_size=9,
                         x=0.5, xanchor="center"),
         )
         col.markdown(f"<div class='sec-title' style='font-size:0.78rem;'>{titulo}</div>",
@@ -448,9 +449,7 @@ elif pagina == "📋  Cadastro e Regularização":
             textfont=dict(size=11, color="#444"),
         ))
         fig.update_layout(
-            **LAYOUT,
-            height=260,
-            bargap=0,          # sem espaço entre barras = efeito degrau
+            **LAYOUT, height=320, bargap=0,
             xaxis=dict(showgrid=False, showline=False, tickfont_size=10),
             yaxis=dict(showgrid=False, showticklabels=False, showline=False),
         )
@@ -515,11 +514,11 @@ elif pagina == "🌍  Cobertura Espacial":
     with st.expander("🔎 Filtros", expanded=True):
         fc1,fc2,fc3 = st.columns(3)
         f_esf2 = fc1.multiselect("Esfera", sorted(bio["Esfera_UC"].dropna().unique()),
-                                  default=sorted(bio["Esfera_UC"].dropna().unique()), key="ce_e")
+                                  placeholder="Selecione...", key="ce_e")
         f_bio2 = fc2.multiselect("Bioma SCM", sorted(bio["Bioma_SCM"].dropna().unique()),
-                                  default=sorted(bio["Bioma_SCM"].dropna().unique()), key="ce_b")
+                                  placeholder="Selecione...", key="ce_b")
         f_grp2 = fc3.multiselect("Grupo UC", sorted(bio["Grupo_UC"].dropna().unique()),
-                                  default=sorted(bio["Grupo_UC"].dropna().unique()), key="ce_g")
+                                  placeholder="Selecione...", key="ce_g")
     db = bio.copy()
     if f_esf2: db = db[db["Esfera_UC"].isin(f_esf2)]
     if f_bio2: db = db[db["Bioma_SCM"].isin(f_bio2)]
@@ -603,7 +602,7 @@ elif pagina == "🌍  Cobertura Espacial":
         fig = px.bar(d, x="Area_ha", y="Bioma_SCM", orientation="h",
                      color="Bioma_SCM", color_discrete_map=COR_BIOMA)
         fig.update_traces(texttemplate="%{x:,.0f} ha", textposition="outside")
-        fig.update_layout(**LAYOUT, height=260, showlegend=False,
+        fig.update_layout(**LAYOUT, height=320, showlegend=False,
                           yaxis_title="", xaxis_title="Hectares")
         st.plotly_chart(fig, use_container_width=True)
     with g2:
@@ -612,7 +611,7 @@ elif pagina == "🌍  Cobertura Espacial":
         fig = px.pie(d, names="Esfera_UC", values="Area_ha", color="Esfera_UC",
                      color_discrete_map=COR_ESFERA, hole=0.5)
         fig.update_traces(texttemplate="%{label}<br>%{percent:.1%}")
-        fig.update_layout(**LAYOUT, height=260, showlegend=False)
+        fig.update_layout(**LAYOUT, height=320, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
     sec("Detalhamento geoespacial")
@@ -628,11 +627,11 @@ elif pagina == "⚙️  Implementação e Efetividade":
     with st.expander("🔎 Filtros", expanded=True):
         fc1,fc2,fc3 = st.columns(3)
         f_esf3 = fc1.multiselect("Esfera", sorted(base["Esfera"].dropna().unique()),
-                                  default=sorted(base["Esfera"].dropna().unique()), key="ie_e")
+                                  placeholder="Selecione...", key="ie_e")
         f_grp3 = fc2.multiselect("Grupo",  sorted(base["Grupo"].dropna().unique()),
-                                  default=sorted(base["Grupo"].dropna().unique()), key="ie_g")
+                                  placeholder="Selecione...", key="ie_g")
         f_cat3 = fc3.multiselect("Categoria", sorted(base["Categoria SNUC"].dropna().unique()),
-                                  default=sorted(base["Categoria SNUC"].dropna().unique()), key="ie_c")
+                                  placeholder="Selecione...", key="ie_c")
     di = base.copy()
     if f_esf3: di = di[di["Esfera"].isin(f_esf3)]
     if f_grp3: di = di[di["Grupo"].isin(f_grp3)]
@@ -669,7 +668,7 @@ elif pagina == "⚙️  Implementação e Efetividade":
         fig.add_bar(name="Sem", x=df_ind["Indicador"], y=df_ind["Sem"],
                     marker_color="#CFD8DC", text=df_ind["Sem"], textposition="inside",
                     insidetextanchor="middle")
-        fig.update_layout(**LAYOUT, barmode="stack", height=280,
+        fig.update_layout(**LAYOUT, barmode="stack", height=340,
                           yaxis_title="Qtd UCs",
                           legend=dict(orientation="h", y=1.08, font_size=11))
         st.plotly_chart(fig, use_container_width=True)
@@ -682,7 +681,7 @@ elif pagina == "⚙️  Implementação e Efetividade":
             marker_color=cores,
             text=[f"{v:.1f}%" for v in pcts.values()], textposition="outside",
         ))
-        fig.update_layout(**LAYOUT, height=280,
+        fig.update_layout(**LAYOUT, height=340,
                           xaxis=dict(range=[0,105], title="%"), yaxis_title="")
         st.plotly_chart(fig, use_container_width=True)
 
@@ -694,7 +693,7 @@ elif pagina == "⚙️  Implementação e Efetividade":
         fig = go.Figure()
         fig.add_bar(name="Com PM", x=pm["Esfera"], y=pm["Com"], marker_color=VERDE2)
         fig.add_bar(name="Sem PM", x=pm["Esfera"], y=pm["Sem"], marker_color="#CFD8DC")
-        fig.update_layout(**LAYOUT, barmode="stack", height=240,
+        fig.update_layout(**LAYOUT, barmode="stack", height=300,
                           legend=dict(orientation="h", y=1.08, font_size=10))
         st.plotly_chart(fig, use_container_width=True)
     with g4:
@@ -704,7 +703,7 @@ elif pagina == "⚙️  Implementação e Efetividade":
         fig = go.Figure()
         fig.add_bar(name="Com CG", x=cg["Esfera"], y=cg["Com"], marker_color="#1565C0")
         fig.add_bar(name="Sem CG", x=cg["Esfera"], y=cg["Sem"], marker_color="#CFD8DC")
-        fig.update_layout(**LAYOUT, barmode="stack", height=240,
+        fig.update_layout(**LAYOUT, barmode="stack", height=300,
                           legend=dict(orientation="h", y=1.08, font_size=10))
         st.plotly_chart(fig, use_container_width=True)
 
@@ -722,9 +721,10 @@ elif pagina == "🗺️  Informações Geoespaciais":
     with st.expander("🔎 Filtros", expanded=True):
         fc1,fc2 = st.columns(2)
         f_bio4 = fc1.multiselect("Bioma", sorted(bmap["Bioma"].dropna().unique()),
-                                  default=sorted(bmap["Bioma"].dropna().unique()), key="ge_b")
+                                  placeholder="Selecione...", key="ge_b")
         f_mun4 = fc2.multiselect("Município",
-                                  sorted(mun["Municípios_1"].dropna().unique()), key="ge_m")
+                                  sorted(mun["Municípios_1"].dropna().unique()),
+                                  placeholder="Selecione...", key="ge_m")
     dg = bmap.copy()
     if f_bio4: dg = dg[dg["Bioma"].isin(f_bio4)]
     dm = mun.copy()
