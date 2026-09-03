@@ -254,7 +254,12 @@ if pag=="🏠  Visão Geral":
 # ══════════════════════════════════════════════════════════════════════════════
 # CADASTRO E REGULARIZAÇÃO
 # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# CADASTRO E REGULARIZAÇÃO  —  com cross-filter (clique nos gráficos)
+# ══════════════════════════════════════════════════════════════════════════════
 elif pag=="📋  Cadastro e Regularização":
+
+    # ── Filtros de menu ───────────────────────────────────────────────────────
     with st.expander("🔎 Filtros",expanded=True):
         c1,c2,c3,c4,c5 = st.columns(5)
         fb = c1.multiselect("Bioma",   sorted(base["Bioma"].dropna().unique()),            placeholder="Selecione...",key="cr_b")
@@ -262,14 +267,79 @@ elif pag=="📋  Cadastro e Regularização":
         fg = c3.multiselect("Grupo",   sorted(base["Grupo"].dropna().unique()),            placeholder="Selecione...",key="cr_g")
         fe = c4.multiselect("Esfera",  sorted(base["Esfera"].dropna().unique()),           placeholder="Selecione...",key="cr_e")
         fc = c5.multiselect("Cat. SNUC",sorted(base["Categoria SNUC"].dropna().unique()),  placeholder="Selecione...",key="cr_c")
-    df = base.copy()
-    if fb: df=df[df["Bioma"].isin(fb)]
-    if ft: df=df[df["NomenclaturaSNUC"].isin(ft)]
-    if fg: df=df[df["Grupo"].isin(fg)]
-    if fe: df=df[df["Esfera"].isin(fe)]
-    if fc: df=df[df["Categoria SNUC"].isin(fc)]
 
-    # KPIs
+    df0 = base.copy()
+    if fb: df0=df0[df0["Bioma"].isin(fb)]
+    if ft: df0=df0[df0["NomenclaturaSNUC"].isin(ft)]
+    if fg: df0=df0[df0["Grupo"].isin(fg)]
+    if fe: df0=df0[df0["Esfera"].isin(fe)]
+    if fc: df0=df0[df0["Categoria SNUC"].isin(fc)]
+
+    # ── CROSS-FILTER ──────────────────────────────────────────────────────────
+    # Mapa: chave do gráfico -> (coluna do dataframe, campo do evento plotly)
+    XF = {
+        "r_esf":    ("Esfera",               "label"),
+        "r_seuc":   ("Cadastro do SEUC/RS",  "label"),
+        "r_cnuc":   ("CNUC",                 "label"),
+        "r_snuc":   ("CadastroSNUC",         "label"),
+        "r_grp":    ("Grupo",                "label"),
+        "snuc_bar": ("Categoria SNUC",       "x"),
+        "bio_bar":  ("Bioma",                "y"),
+    }
+
+    def _leitura(key, campo):
+        """Lê a seleção de um gráfico a partir do session_state."""
+        ev = st.session_state.get(key)
+        if not ev:
+            return None
+        try:
+            pts = ev["selection"]["points"]
+        except (KeyError, TypeError):
+            return None
+        if not pts:
+            return None
+        return pts[0].get(campo)
+
+    # Seleções ativas: {coluna: valor}
+    SEL = {}
+    for k,(coluna,campo) in XF.items():
+        v = _leitura(k, campo)
+        if v is not None:
+            SEL[coluna] = v
+
+    def xfilter(d, exceto=None):
+        """Aplica as seleções ativas, ignorando a do próprio gráfico.
+        É isso que faz o visual clicado manter todas as suas fatias."""
+        for coluna, valor in SEL.items():
+            if coluna == exceto:
+                continue
+            if coluna in d.columns:
+                d = d[d[coluna].astype(str) == str(valor)]
+        return d
+
+    df = xfilter(df0)          # dataframe totalmente filtrado
+
+    # ── Barra de seleção ativa ────────────────────────────────────────────────
+    if SEL:
+        bc1, bc2 = st.columns([5,1])
+        chips = " ".join(
+            f"<span style='background:{AMAR};color:#333;padding:3px 10px;"
+            f"border-radius:12px;font-size:.72rem;margin-right:6px;'>"
+            f"{c}: <b>{v}</b></span>"
+            for c,v in SEL.items()
+        )
+        bc1.markdown(
+            f"<div style='background:rgba(255,255,255,.65);backdrop-filter:blur(8px);"
+            f"border-radius:8px;padding:8px 12px;margin-bottom:8px;'>"
+            f"<span style='font-size:.72rem;color:#666;margin-right:8px;'>"
+            f"Filtro por clique:</span>{chips}</div>",
+            unsafe_allow_html=True)
+        if bc2.button("✕ Limpar", key="cr_limpar", use_container_width=True):
+            for k in XF:
+                st.session_state.pop(k, None)
+            st.rerun()
+
+    # ── KPIs ──────────────────────────────────────────────────────────────────
     k1,k2,k3,k4 = st.columns(4)
     kpi(k1,f"{df['Área poligonal (ha)'].sum():,.2f}","Áreas Protegidas (ha)")
     kpi(k2,df["CadastroSNUC"].astype(str).str.lower().eq("sim").sum(),"Unidades de Conservação","am")
@@ -278,19 +348,33 @@ elif pag=="📋  Cadastro e Regularização":
 
     st.markdown("<br>",unsafe_allow_html=True)
 
-    # ── 5 roscas ──────────────────────────────────────────────────────────────
-    sec("Distribuição por categoria")
+    # ── 5 roscas clicáveis ────────────────────────────────────────────────────
+    sec("Distribuição por categoria  ·  clique para filtrar")
     r1,r2,r3,r4,r5 = st.columns(5)
 
-    def rosca(col, titulo, serie, cmap, key):
-        d = serie.value_counts().reset_index()
+    CINZA_OFF = "#dcdcdc"
+
+    def rosca(col, titulo, coluna, cmap, key):
+        # cada rosca vê os filtros dos OUTROS gráficos, não o seu próprio
+        d_src = xfilter(df0, exceto=coluna)
+        d = d_src[coluna].value_counts().reset_index()
         d.columns=["cat","n"]
+        if d.empty:
+            col.markdown(f"<div class='st' style='font-size:.76rem;'>{titulo}</div>",
+                         unsafe_allow_html=True)
+            col.caption("sem dados")
+            return
         total = int(d["n"].sum())
-        fig = px.pie(d, names="cat", values="n", hole=0.50,
-                     color="cat", color_discrete_map=cmap)
+        sel_aqui = SEL.get(coluna)
+        cores = [
+            (cmap.get(c, "#bbb") if (sel_aqui is None or str(c)==str(sel_aqui))
+             else CINZA_OFF)
+            for c in d["cat"]
+        ]
+        fig = px.pie(d, names="cat", values="n", hole=0.50)
         fig.update_traces(
-            # domain encolhe o donut INTEIRO dentro da área do gráfico
-            # (+15% de raio em relação à versão anterior)
+            marker=dict(colors=cores,
+                        line=dict(color="rgba(255,255,255,.85)", width=1)),
             domain=dict(x=[0.13, 0.87], y=[0.24, 1.00]),
             texttemplate="%{value}<br>%{percent:.0%}",
             textposition="inside", textfont_size=8,
@@ -304,55 +388,67 @@ elif pag=="📋  Cadastro e Regularização":
             font=dict(size=12, color=VERDE), showarrow=False,
         )
         fig.update_layout(
-            margin=dict(t=4, b=4, l=4, r=4),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font_family="Arial", font_color="#333",
-            height=205,
+            margin=dict(t=4,b=4,l=4,r=4),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_family="Arial", font_color="#333", height=205,
             legend=dict(orientation="h", y=0.07, x=0.5, xanchor="center",
-                        yanchor="top", font_size=8, itemwidth=30,
-                        title_text=""),
+                        yanchor="top", font_size=8, itemwidth=30, title_text=""),
         )
         col.markdown(f"<div class='st' style='font-size:.76rem;'>{titulo}</div>",
                      unsafe_allow_html=True)
         col.plotly_chart(fig, use_container_width=True, key=key,
+                         on_select="rerun", selection_mode="points",
                          config={"displayModeBar":False})
 
-    rosca(r1,"Esfera",       df["Esfera"],            COR_ESF_R, "r_esf")
-    rosca(r2,"SEUC",         df["Cadastro do SEUC/RS"],COR_SN,   "r_seuc")
-    rosca(r3,"CNUC",         df["CNUC"],               COR_SN,   "r_cnuc")
-    rosca(r4,"SNUC",         df["CadastroSNUC"],        COR_SN,   "r_snuc")
-    rosca(r5,"Grupo",        df["Grupo"],               COR_GRP_R,"r_grp")
+    rosca(r1,"Esfera","Esfera",              COR_ESF_R, "r_esf")
+    rosca(r2,"SEUC",  "Cadastro do SEUC/RS", COR_SN,    "r_seuc")
+    rosca(r3,"CNUC",  "CNUC",                COR_SN,    "r_cnuc")
+    rosca(r4,"SNUC",  "CadastroSNUC",        COR_SN,    "r_snuc")
+    rosca(r5,"Grupo", "Grupo",               COR_GRP_R, "r_grp")
 
-    # ── barras ────────────────────────────────────────────────────────────────
+    # ── barras clicáveis ──────────────────────────────────────────────────────
     st.markdown("<br>",unsafe_allow_html=True)
     g1,g2 = st.columns(2)
 
     with g1:
         sec("Categoria SNUC")
-        d = df["Categoria SNUC"].value_counts().reset_index()
+        d_src = xfilter(df0, exceto="Categoria SNUC")
+        d = d_src["Categoria SNUC"].value_counts().reset_index()
         d.columns=["cat","n"]; d=d.sort_values("cat")
-        fig=go.Figure(go.Bar(x=d["cat"],y=d["n"],marker_color=AZUL,
+        sel_aqui = SEL.get("Categoria SNUC")
+        cores = [(AZUL if (sel_aqui is None or str(c)==str(sel_aqui)) else CINZA_OFF)
+                 for c in d["cat"]]
+        fig=go.Figure(go.Bar(x=d["cat"],y=d["n"],marker_color=cores,
             marker_line_width=0,text=d["n"],textposition="outside",
-            textfont_size=11))
+            textfont_size=11,
+            hovertemplate="<b>%{x}</b> — %{y}<extra></extra>"))
         fig.update_layout(**LY, height=360, bargap=0,
             xaxis=dict(showgrid=False,showline=False,tickfont_size=10),
             yaxis=dict(showgrid=False,showticklabels=False,showline=False,
                        range=[0,d["n"].max()*1.3]))
-        chart(fig,360,"snuc_bar")
+        st.plotly_chart(fig, use_container_width=True, key="snuc_bar",
+                        on_select="rerun", selection_mode="points",
+                        config={"displayModeBar":False})
 
     with g2:
         sec("Biomas")
-        d=df["Bioma"].value_counts().reset_index()
+        d_src = xfilter(df0, exceto="Bioma")
+        d = d_src["Bioma"].value_counts().reset_index()
         d.columns=["b","n"]; d=d.sort_values("n",ascending=True)
+        sel_aqui = SEL.get("Bioma")
+        cores = [(AZUL if (sel_aqui is None or str(b)==str(sel_aqui)) else CINZA_OFF)
+                 for b in d["b"]]
         fig=go.Figure(go.Bar(x=d["n"],y=d["b"],orientation="h",
-            marker_color=AZUL,marker_line_width=0,text=d["n"],
-            textposition="outside",textfont_size=11))
+            marker_color=cores,marker_line_width=0,text=d["n"],
+            textposition="outside",textfont_size=11,
+            hovertemplate="<b>%{y}</b> — %{x}<extra></extra>"))
         fig.update_layout(**LY, height=360,
             xaxis=dict(showgrid=False,showticklabels=False,
                        range=[0,d["n"].max()*1.3]),
             yaxis=dict(showgrid=False,tickfont_size=10))
-        chart(fig,360,"bio_bar")
+        st.plotly_chart(fig, use_container_width=True, key="bio_bar",
+                        on_select="rerun", selection_mode="points",
+                        config={"displayModeBar":False})
 
     # ── tabela ────────────────────────────────────────────────────────────────
     sec("Listagem de UCs")
@@ -364,23 +460,27 @@ elif pag=="📋  Cadastro e Regularização":
     # ── área acumulada ────────────────────────────────────────────────────────
     sec("Área acumulada (ha)")
     dt=df.dropna(subset=["Ano de criação"]).copy()
-    dt["Ano de criação"]=dt["Ano de criação"].astype(int)
-    dt=dt.sort_values("Ano de criação")
-    dt["Acum"]=dt["Área poligonal (ha)"].cumsum()
-    ag=dt.groupby("Ano de criação")["Acum"].max().reset_index()
-    fig=px.area(ag,x="Ano de criação",y="Acum",
-                color_discrete_sequence=[VERDE2])
-    fig.update_traces(line_color=VERDE,fillcolor="rgba(46,125,50,.18)",
-        hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>")
-    for _,row in ag[ag["Ano de criação"].isin(
-            [1960,1970,1980,1990,2000,2010,2020])].iterrows():
-        fig.add_annotation(x=row["Ano de criação"],y=row["Acum"],
-            text=f"{row['Acum']/1000:.0f} Mil",
-            showarrow=False,yshift=12,font_size=9,font_color="#444")
-    fig.update_layout(**LY,height=280,
-        xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True,gridcolor="#eee",title="ha"))
-    chart(fig,280,"acum")
+    if dt.empty:
+        st.caption("Sem UCs com ano de criação para a seleção atual.")
+    else:
+        dt["Ano de criação"]=dt["Ano de criação"].astype(int)
+        dt=dt.sort_values("Ano de criação")
+        dt["Acum"]=dt["Área poligonal (ha)"].cumsum()
+        ag=dt.groupby("Ano de criação")["Acum"].max().reset_index()
+        fig=px.area(ag,x="Ano de criação",y="Acum",
+                    color_discrete_sequence=[VERDE2])
+        fig.update_traces(line_color=VERDE,fillcolor="rgba(46,125,50,.18)",
+            hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>")
+        for _,row in ag[ag["Ano de criação"].isin(
+                [1960,1970,1980,1990,2000,2010,2020])].iterrows():
+            fig.add_annotation(x=row["Ano de criação"],y=row["Acum"],
+                text=f"{row['Acum']/1000:.0f} Mil",
+                showarrow=False,yshift=12,font_size=9,font_color="#444")
+        fig.update_layout(**LY,height=280,
+            xaxis=dict(showgrid=False),
+            yaxis=dict(showgrid=True,gridcolor="#eee",title="ha"))
+        chart(fig,280,"acum")
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
