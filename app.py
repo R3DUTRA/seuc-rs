@@ -330,23 +330,18 @@ elif pagina == "📋  Cadastro e Regularização":
         fc1,fc2,fc3,fc4,fc5 = st.columns(5)
         f_bio = fc1.multiselect("Bioma",
                     sorted(base["Bioma"].dropna().unique()),
-                    default=sorted(base["Bioma"].dropna().unique()),
                     placeholder="Selecione...", key="cr_b")
         f_tip = fc2.multiselect("Tipo",
                     sorted(base["NomenclaturaSNUC"].dropna().unique()),
-                    default=sorted(base["NomenclaturaSNUC"].dropna().unique()),
                     placeholder="Selecione...", key="cr_t")
         f_grp = fc3.multiselect("Grupo",
                     sorted(base["Grupo"].dropna().unique()),
-                    default=sorted(base["Grupo"].dropna().unique()),
                     placeholder="Selecione...", key="cr_g")
         f_esf = fc4.multiselect("Esfera",
                     sorted(base["Esfera"].dropna().unique()),
-                    default=sorted(base["Esfera"].dropna().unique()),
                     placeholder="Selecione...", key="cr_e")
         f_cat = fc5.multiselect("Categoria SNUC",
                     sorted(base["Categoria SNUC"].dropna().unique()),
-                    default=sorted(base["Categoria SNUC"].dropna().unique()),
                     placeholder="Selecione...", key="cr_c")
 
     df = base.copy()
