@@ -386,50 +386,59 @@ elif pagina == "📋  Cadastro e Regularização":
     sec("Distribuição por categoria")
     r1,r2,r3,r4,r5 = st.columns(5)
 
+    # Paleta suave para roscas Sim/Não
+    COR_SN = {"Sim": "#4a8c5c", "Não": "#d0d8d2"}
+    COR_GRUPO_R = {
+        "Proteção Integral": "#4a7c5c",
+        "Uso Sustentável":   "#8fae8f",
+        "Não se aplica":     "#c5cfc5",
+    }
+    COR_ESFERA_R = {
+        "Federal":  "#5b7fa6",
+        "Estadual": "#4a8c5c",
+        "Municipal":"#a67c5b",
+    }
+
     def rosca(col, titulo, serie, mapa_cores=None, key=""):
         d = serie.value_counts().reset_index()
         d.columns = ["cat","n"]
         total = d["n"].sum()
         d["pct"] = (d["n"] / total * 100).round(0).astype(int)
-        d["label"] = d.apply(lambda r: f"{r['n']} ({r['pct']}%)", axis=1)
         kwargs = dict(color="cat", color_discrete_map=mapa_cores) if mapa_cores else \
-                 dict(color_discrete_sequence=["#2f4c9c","#2E7D32","#bf5b17","#7f8080","#f9b60e"])
-        fig = px.pie(d, names="cat", values="n", hole=0.55,
-                     custom_data=["label"], **kwargs)
+                 dict(color_discrete_sequence=["#5b7fa6","#4a8c5c","#a67c5b","#c5cfc5","#8fae8f"])
+        fig = px.pie(d, names="cat", values="n", hole=0.60, **kwargs)
         fig.update_traces(
-            texttemplate="%{customdata[0]}",
-            textposition="outside",
-            textfont_size=10,
+            # texto direto na fatia: só o número e %
+            texttemplate="%{value}<br>(%{percent:.0%})",
+            textposition="inside",
+            textfont_size=9,
+            insidetextorientation="horizontal",
             hovertemplate="<b>%{label}</b><br>%{value} (%{percent})<extra></extra>",
-            # sem pull — fatias encostadas
         )
         fig.add_annotation(
             text=f"<b>{total}</b>", x=0.5, y=0.5,
-            font=dict(size=13, color=VERDE),
+            font=dict(size=11, color=VERDE),
             showarrow=False
         )
         fig.update_layout(
-            **LAYOUT, height=260,
+            **LAYOUT, height=220,
             showlegend=True,
-            legend=dict(orientation="h", y=-0.12, font_size=9,
-                        x=0.5, xanchor="center"),
+            legend=dict(
+                orientation="h", y=-0.05, font_size=9,
+                x=0.5, xanchor="center",
+                itemwidth=30,
+            ),
         )
         col.markdown(f"<div class='sec-title' style='font-size:0.78rem;'>{titulo}</div>",
                      unsafe_allow_html=True)
         col.plotly_chart(fig, use_container_width=True, key=f"rosca_{key}")
 
-    rosca(r1, "Esfera", df["Esfera"],
-          {"Federal":"#2f4c9c","Estadual":"#2E7D32","Municipal":"#bf5b17"}, key="esfera")
-    rosca(r2, "SEUC", df["Cadastro do SEUC/RS"],
-          {"Sim":"#2E7D32","Não":"#CFD8DC"}, key="seuc")
-    rosca(r3, "CNUC", df["CNUC"],
-          {"Sim":"#2E7D32","Não":"#CFD8DC"}, key="cnuc")
-    rosca(r4, "SNUC", df["CadastroSNUC"].map({True:"Sim",False:"Não"}) if df["CadastroSNUC"].dtype==bool
-                      else df["CadastroSNUC"],
-          {"Sim":"#2E7D32","Não":"#CFD8DC"}, key="snuc")
-    rosca(r5, "Grupo", df["Grupo"],
-          {"Proteção Integral":"#1A5C2A","Uso Sustentável":"#f9b60e","Não se aplica":"#7f8080"},
-          key="grupo")
+    rosca(r1, "Esfera", df["Esfera"], COR_ESFERA_R, key="esfera")
+    rosca(r2, "SEUC",   df["Cadastro do SEUC/RS"], COR_SN, key="seuc")
+    rosca(r3, "CNUC",   df["CNUC"], COR_SN, key="cnuc")
+    rosca(r4, "SNUC",   df["CadastroSNUC"].map({True:"Sim",False:"Não"}) if df["CadastroSNUC"].dtype==bool
+                        else df["CadastroSNUC"], COR_SN, key="snuc")
+    rosca(r5, "Grupo",  df["Grupo"], COR_GRUPO_R, key="grupo")
 
     # ── Linha 2: barras SNUC + barras Biomas ───────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
@@ -439,19 +448,20 @@ elif pagina == "📋  Cadastro e Regularização":
         sec("Categoria SNUC")
         d = df["Categoria SNUC"].value_counts().reset_index()
         d.columns = ["Categoria","n"]
-        d = d.sort_values("Categoria")  # ordem alfabética igual ao Power BI
+        d = d.sort_values("Categoria")
         fig = go.Figure(go.Bar(
             x=d["Categoria"], y=d["n"],
-            marker_color="#7BC8F0",
+            marker_color="#6a9ab0",
             marker_line_width=0,
             text=d["n"],
             textposition="outside",
             textfont=dict(size=11, color="#444"),
         ))
         fig.update_layout(
-            **LAYOUT, height=320, bargap=0,
+            **LAYOUT, height=340, bargap=0,
             xaxis=dict(showgrid=False, showline=False, tickfont_size=10),
-            yaxis=dict(showgrid=False, showticklabels=False, showline=False),
+            yaxis=dict(showgrid=False, showticklabels=False, showline=False,
+                       range=[0, d["n"].max() * 1.25]),
         )
         st.plotly_chart(fig, use_container_width=True, key="snuc_bar")
 
@@ -460,13 +470,21 @@ elif pagina == "📋  Cadastro e Regularização":
         d = df["Bioma"].value_counts().reset_index()
         d.columns = ["Bioma","n"]
         d = d.sort_values("n", ascending=True)
-        fig = px.bar(d, x="n", y="Bioma", orientation="h",
-                     color="Bioma", color_discrete_map=COR_BIOMA)
-        fig.update_traces(texttemplate="%{x}", textposition="outside")
-        fig.update_layout(**LAYOUT, height=280, showlegend=False,
-                          xaxis_title="", yaxis_title="",
-                          xaxis=dict(showgrid=False, showticklabels=False))
-        st.plotly_chart(fig, use_container_width=True)
+        fig = go.Figure(go.Bar(
+            x=d["n"], y=d["Bioma"], orientation="h",
+            marker_color="#6a9ab0",
+            marker_line_width=0,
+            text=d["n"],
+            textposition="outside",
+            textfont=dict(size=11, color="#444"),
+        ))
+        fig.update_layout(
+            **LAYOUT, height=340, showlegend=False,
+            xaxis=dict(showgrid=False, showticklabels=False,
+                       range=[0, d["n"].max() * 1.3]),
+            yaxis=dict(showgrid=False),
+        )
+        st.plotly_chart(fig, use_container_width=True, key="biomas_bar")
 
     # ── Tabela ─────────────────────────────────────────────────────────────
     sec("Listagem de UCs")
@@ -535,38 +553,37 @@ elif pagina == "🌍  Cobertura Espacial":
     sec("Mapa de Biomas do RS")
 
     CORES_MAPA = {
-        "Mata Atlântica":                   "#2E7D32",
-        "Pampa":                            "#F9A825",
-        "Costeiro-Marinho":                 "#0277BD",
-        "Mata Atlântica, Pampa":            "#8BC34A",
-        "Mata Atlântica, Costeiro-Marinho": "#00ACC1",
-        "Pampa, Costeiro-Marinho":          "#AB47BC",
+        "Mata Atlântica":                   "#4a8c5c",
+        "Pampa":                            "#c9b96e",
+        "Costeiro-Marinho":                 "#5b7fa6",
+        "Mata Atlântica, Pampa":            "#8fae8f",
+        "Mata Atlântica, Costeiro-Marinho": "#7a9eb0",
+        "Pampa, Costeiro-Marinho":          "#9b8fb0",
     }
 
     fig_map = go.Figure()
     for feat in bio_geo["features"]:
         nome = feat["properties"]["name"]
-        cor  = CORES_MAPA.get(nome, "#999999")
+        cor  = CORES_MAPA.get(nome, "#aaaaaa")
         geom = feat["geometry"]
-        # Normaliza: Polygon → lista de rings, MultiPolygon → achata tudo
         if geom["type"] == "Polygon":
             all_rings = geom["coordinates"]
-        else:  # MultiPolygon
+        else:
             all_rings = [ring for poly in geom["coordinates"] for ring in poly]
-        polys = [all_rings]  # mantém compatibilidade com loop abaixo
-        for poly in [all_rings]:
-            for ring in poly:
-                # Coordenadas podem ser [lon, lat] ou [lon, lat, alt]
-                lons = [pt[0] for pt in ring]
-                lats = [pt[1] for pt in ring]
+        first = True
+        for ring in all_rings:
+            lons = [pt[0] for pt in ring]
+            lats = [pt[1] for pt in ring]
             fig_map.add_trace(go.Scattergeo(
                 lon=lons, lat=lats, mode="lines",
-                fill="toself", fillcolor=cor + "99",
-                line=dict(color=cor, width=1),
+                fill="toself",
+                fillcolor=cor + "bb",
+                line=dict(color="white", width=0.8),
                 name=nome,
                 hovertemplate=f"<b>{nome}</b><extra></extra>",
-                showlegend=True,
+                showlegend=first,
             ))
+            first = False
 
     # Remover duplicatas na legenda
     seen = set()
@@ -579,31 +596,39 @@ elif pagina == "🌍  Cobertura Espacial":
         geo=dict(
             scope="south america",
             center=dict(lat=-29.5, lon=-53.0),
-            projection_scale=8,
-            showland=True, landcolor="#f5f5f5",
-            showocean=True, oceancolor="#dce8f5",
-            showcoastlines=True, coastlinecolor="#aaa",
+            projection_scale=9,
+            showland=False,
+            showocean=False,
+            showcoastlines=False,
             showframe=False,
-            bgcolor="white",
+            bgcolor="rgba(0,0,0,0)",
         ),
-        height=420,
-        margin=dict(t=6,b=6,l=6,r=6),
-        legend=dict(orientation="v", x=1.01, y=0.5, font_size=11,
-                    bgcolor="rgba(255,255,255,0.85)", bordercolor="#ccc", borderwidth=1),
-        paper_bgcolor="white",
+        height=560,
+        margin=dict(t=0, b=0, l=0, r=160),
+        legend=dict(
+            orientation="v", x=1.01, y=0.5, font_size=11,
+            bgcolor="rgba(255,255,255,0.7)",
+            bordercolor="rgba(0,0,0,0.1)", borderwidth=1,
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
     )
-    st.plotly_chart(fig_map, use_container_width=True)
+    st.plotly_chart(fig_map, use_container_width=True, key="mapa_biomas")
 
     g1,g2 = st.columns(2)
     with g1:
         sec("Área (ha) por Bioma SCM")
         d = db.groupby("Bioma_SCM")["Area_ha"].sum().reset_index()
         d = d.sort_values("Area_ha")
-        fig = px.bar(d, x="Area_ha", y="Bioma_SCM", orientation="h",
-                     color="Bioma_SCM", color_discrete_map=COR_BIOMA)
-        fig.update_traces(texttemplate="%{x:,.0f} ha", textposition="outside")
-        fig.update_layout(**LAYOUT, height=320, showlegend=False,
-                          yaxis_title="", xaxis_title="Hectares")
+        fig = go.Figure(go.Bar(
+            x=d["Area_ha"], y=d["Bioma_SCM"], orientation="h",
+            marker_color="#6a9ab0", marker_line_width=0,
+            text=[f"{v:,.0f} ha" for v in d["Area_ha"]],
+            textposition="outside",
+        ))
+        fig.update_layout(**LAYOUT, height=340, showlegend=False,
+                          yaxis_title="", xaxis_title="",
+                          xaxis=dict(showgrid=False, showticklabels=False,
+                                     range=[0, d["Area_ha"].max()*1.35]))
         st.plotly_chart(fig, use_container_width=True)
     with g2:
         sec("Área (ha) por Esfera")
@@ -785,21 +810,34 @@ elif pagina == "🗺️  Informações Geoespaciais":
         top = (dm.groupby("Municípios_1")["Código"].nunique()
                .reset_index().rename(columns={"Código":"UCs","Municípios_1":"Município"})
                .sort_values("UCs", ascending=False).head(20))
-        fig = px.bar(top, x="UCs", y="Município", orientation="h",
-                     color_discrete_sequence=[VERDE2])
-        fig.update_traces(texttemplate="%{x}", textposition="outside")
-        fig.update_layout(**LAYOUT, height=420,
+        fig = go.Figure(go.Bar(
+            x=top["UCs"], y=top["Município"], orientation="h",
+            marker_color="#6a9ab0", marker_line_width=0,
+            text=top["UCs"], textposition="outside",
+        ))
+        fig.update_layout(**LAYOUT, height=520,
                           yaxis=dict(autorange="reversed"),
-                          xaxis_title="Nº de UCs", yaxis_title="")
+                          xaxis=dict(showgrid=False, showticklabels=False,
+                                     range=[0, top["UCs"].max()*1.25],
+                                     title=""),
+                          yaxis_title="")
         st.plotly_chart(fig, use_container_width=True)
     with g2:
         sec("UCs por Bioma")
         d = dg["Bioma"].value_counts().reset_index()
+        COR_BIOMA_SUAVE = {
+            "Mata Atlântica":                   "#4a8c5c",
+            "Pampa":                            "#c9b96e",
+            "Costeiro-Marinho":                 "#5b7fa6",
+            "Mata Atlântica, Pampa":            "#8fae8f",
+            "Mata Atlântica, Costeiro-Marinho": "#7a9eb0",
+            "Pampa, Costeiro-Marinho":          "#9b8fb0",
+        }
         fig = px.pie(d, names="Bioma", values="count", color="Bioma",
-                     color_discrete_map=COR_BIOMA, hole=0.46)
+                     color_discrete_map=COR_BIOMA_SUAVE, hole=0.46)
         fig.update_traces(textinfo="percent+label", textfont_size=10)
-        fig.update_layout(**LAYOUT, height=420, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(**LAYOUT, height=520, showlegend=False)
+        st.plotly_chart(fig, use_container_width=True, key="ge_bioma_pie")
 
     t1,t2 = st.columns(2)
     with t1:
