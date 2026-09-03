@@ -31,49 +31,53 @@ COR_BIOMA  = {
 }
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
+# ─── CSS ──────────────────────────────────────────────────────────────────────
+# Carregar background em base64
+import base64
+with open("data/bg.png", "rb") as _f:
+    _bg64 = base64.b64encode(_f.read()).decode()
+
 st.markdown(f"""
 <style>
-  /* Fundo geral claro */
-  .main {{ background-color: #EBEBEB !important; }}
-  .block-container {{ background-color: #EBEBEB !important; padding-top: 0.8rem !important; }}
+  /* ── Fundo com imagem do projeto ── */
+  .main {{
+      background-image: url("data:image/png;base64,{_bg64}") !important;
+      background-size: cover !important;
+      background-attachment: fixed !important;
+      background-position: center !important;
+  }}
+  .block-container {{
+      background: transparent !important;
+      padding-top: 0.8rem !important;
+  }}
 
-  /* Sidebar branca com borda direita verde */
+  /* ── Sidebar branca com borda verde ── */
   [data-testid="stSidebar"] {{
       background-color: {BRANCO} !important;
       border-right: 4px solid {VERDE} !important;
   }}
   [data-testid="stSidebar"] * {{ color: {VERDE} !important; }}
   [data-testid="stSidebar"] .stRadio label {{
-      font-size: 0.85rem;
-      font-weight: 500;
-      color: #333 !important;
-      padding: 4px 0;
-  }}
-  [data-testid="stSidebar"] .stRadio [aria-checked="true"] + label,
-  [data-testid="stSidebar"] .stRadio [data-checked="true"] label {{
-      color: {VERDE} !important;
-      font-weight: 700 !important;
+      font-size: 0.85rem; font-weight: 500;
+      color: #333 !important; padding: 4px 0;
   }}
 
-  /* Header topo */
+  /* ── Header topo ── */
   .header-bar {{
-      background: {VERDE};
-      color: {BRANCO};
-      padding: 9px 20px;
-      font-size: 13px;
-      font-weight: 600;
-      border-radius: 6px;
-      margin-bottom: 14px;
-      text-align: center;
-      letter-spacing: 0.4px;
+      background: {VERDE}; color: {BRANCO};
+      padding: 9px 20px; font-size: 13px; font-weight: 600;
+      border-radius: 6px; margin-bottom: 14px;
+      text-align: center; letter-spacing: 0.4px;
   }}
 
-  /* KPI cards */
+  /* ── KPI cards — efeito vidro ── */
   .kpi-wrap {{
-      background: {BRANCO};
+      background: rgba(255,255,255,0.55) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
       border-radius: 8px;
       padding: 14px 16px 10px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
       border-top: 4px solid {VERDE2};
       height: 100%;
   }}
@@ -82,24 +86,37 @@ st.markdown(f"""
   .kpi-wrap.la {{ border-top-color: #bf5b17; }}
   .kpi-wrap.ro {{ border-top-color: #C62828; }}
   .kpi-num  {{ font-size: 2rem; font-weight: 800; color: {VERDE}; line-height: 1.1; }}
-  .kpi-lbl  {{ font-size: 0.74rem; color: #666; margin-top: 3px; }}
+  .kpi-lbl  {{ font-size: 0.74rem; color: #555; margin-top: 3px; }}
 
-  /* Títulos de seção */
+  /* ── Títulos de seção ── */
   .sec-title {{
       font-size: 0.92rem; font-weight: 700; color: {VERDE};
       border-bottom: 2px solid {AMARELO};
       padding-bottom: 3px; margin: 16px 0 8px;
   }}
 
-  /* Gráficos e tabelas com fundo branco */
-  [data-testid="stPlotlyChart"] {{
-      background: {BRANCO};
-      border-radius: 8px;
-      padding: 4px;
+  /* ── Gráficos e tabelas — fundo transparente/vidro ── */
+  [data-testid="stPlotlyChart"] > div {{
+      background: rgba(255,255,255,0.45) !important;
+      backdrop-filter: blur(8px) !important;
+      -webkit-backdrop-filter: blur(8px) !important;
+      border-radius: 10px !important;
+      padding: 6px !important;
   }}
-  [data-testid="stDataFrame"] {{
-      background: {BRANCO};
-      border-radius: 8px;
+  [data-testid="stDataFrame"] > div {{
+      background: rgba(255,255,255,0.55) !important;
+      backdrop-filter: blur(8px) !important;
+      -webkit-backdrop-filter: blur(8px) !important;
+      border-radius: 10px !important;
+  }}
+
+  /* ── Expander de filtros — vidro ── */
+  [data-testid="stExpander"] {{
+      background: rgba(255,255,255,0.55) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
+      border-radius: 8px !important;
+      border: 1px solid rgba(255,255,255,0.7) !important;
   }}
 </style>
 """, unsafe_allow_html=True)
@@ -143,8 +160,8 @@ def kpi(col, num, lbl, cls=""):
 def sec(txt):
     st.markdown(f"<div class='sec-title'>{txt}</div>", unsafe_allow_html=True)
 
-LAYOUT = dict(margin=dict(t=6,b=6,l=6,r=6), paper_bgcolor="white",
-              plot_bgcolor="white", font_family="Arial")
+LAYOUT = dict(margin=dict(t=6,b=6,l=6,r=6), paper_bgcolor="rgba(0,0,0,0)",
+              plot_bgcolor="rgba(0,0,0,0)", font_family="Arial")
 
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
@@ -370,19 +387,32 @@ elif pagina == "📋  Cadastro e Regularização":
         d = serie.value_counts().reset_index()
         d.columns = ["cat","n"]
         total = d["n"].sum()
+        # Calcular labels externos: "N (X%)" igual ao Power BI
+        d["pct"] = (d["n"] / total * 100).round(0).astype(int)
+        d["label"] = d.apply(lambda r: f"{r['n']} ({r['pct']}%)", axis=1)
         kwargs = dict(color="cat", color_discrete_map=mapa_cores) if mapa_cores else \
                  dict(color_discrete_sequence=["#2f4c9c","#2E7D32","#bf5b17","#7f8080","#f9b60e"])
-        fig = px.pie(d, names="cat", values="n", hole=0.55, **kwargs)
+        fig = px.pie(d, names="cat", values="n", hole=0.55,
+                     custom_data=["label"], **kwargs)
         fig.update_traces(
-            textinfo="none",
+            texttemplate="%{customdata[0]}",
+            textposition="outside",
+            textfont_size=10,
             hovertemplate="<b>%{label}</b><br>%{value} (%{percent})<extra></extra>",
+            pull=[0.02]*len(d),
         )
-        fig.add_annotation(text=f"<b>{total}</b>", x=0.5, y=0.5,
-                           font_size=18, showarrow=False, font_color=VERDE)
-        fig.update_layout(**LAYOUT, height=200,
-                          showlegend=True,
-                          legend=dict(orientation="h", y=-0.25, font_size=9,
-                                      x=0.5, xanchor="center"))
+        # Total no centro — fonte menor
+        fig.add_annotation(
+            text=f"<b>{total}</b>", x=0.5, y=0.5,
+            font=dict(size=13, color=VERDE),
+            showarrow=False
+        )
+        fig.update_layout(
+            **LAYOUT, height=210,
+            showlegend=True,
+            legend=dict(orientation="h", y=-0.18, font_size=9,
+                        x=0.5, xanchor="center"),
+        )
         col.markdown(f"<div class='sec-title' style='font-size:0.78rem;'>{titulo}</div>",
                      unsafe_allow_html=True)
         col.plotly_chart(fig, use_container_width=True, key=f"rosca_{key}")
@@ -408,14 +438,23 @@ elif pagina == "📋  Cadastro e Regularização":
         sec("Categoria SNUC")
         d = df["Categoria SNUC"].value_counts().reset_index()
         d.columns = ["Categoria","n"]
-        d = d.sort_values("n", ascending=True)
-        fig = px.bar(d, x="n", y="Categoria", orientation="h",
-                     color_discrete_sequence=[VERDE2])
-        fig.update_traces(texttemplate="%{x}", textposition="outside")
-        fig.update_layout(**LAYOUT, height=280,
-                          xaxis_title="", yaxis_title="",
-                          xaxis=dict(showgrid=False, showticklabels=False))
-        st.plotly_chart(fig, use_container_width=True)
+        d = d.sort_values("Categoria")  # ordem alfabética igual ao Power BI
+        fig = go.Figure(go.Bar(
+            x=d["Categoria"], y=d["n"],
+            marker_color="#7BC8F0",
+            marker_line_width=0,
+            text=d["n"],
+            textposition="outside",
+            textfont=dict(size=11, color="#444"),
+        ))
+        fig.update_layout(
+            **LAYOUT,
+            height=260,
+            bargap=0,          # sem espaço entre barras = efeito degrau
+            xaxis=dict(showgrid=False, showline=False, tickfont_size=10),
+            yaxis=dict(showgrid=False, showticklabels=False, showline=False),
+        )
+        st.plotly_chart(fig, use_container_width=True, key="snuc_bar")
 
     with g2:
         sec("Biomas")
