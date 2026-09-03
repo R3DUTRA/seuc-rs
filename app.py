@@ -103,6 +103,46 @@ st.markdown(f"""<style>
 }}
 /* modebar do plotly some (evita altura extra) */
 .modebar{{display:none!important;}}
+
+/* ═══ cursor: mãozinha nos gráficos, nunca a cruz de arrasto ═══ */
+[data-testid="stPlotlyChart"] .nsewdrag,
+[data-testid="stPlotlyChart"] .drag,
+[data-testid="stPlotlyChart"] .draglayer,
+[data-testid="stPlotlyChart"] .draglayer *,
+[data-testid="stPlotlyChart"] .points path,
+[data-testid="stPlotlyChart"] .point,
+[data-testid="stPlotlyChart"] .trace,
+[data-testid="stPlotlyChart"] .slice,
+[data-testid="stPlotlyChart"] .bars path,
+[data-testid="stPlotlyChart"] .js-plotly-plot .plotly .cursor-crosshair,
+[data-testid="stPlotlyChart"] .js-plotly-plot .plotly .cursor-move,
+[data-testid="stPlotlyChart"] .js-plotly-plot .plotly .cursor-pointer{{
+  cursor:pointer!important;
+}}
+/* neutraliza as classes de cursor que o Plotly injeta inline */
+[data-testid="stPlotlyChart"] .cursor-ew-resize,
+[data-testid="stPlotlyChart"] .cursor-ns-resize,
+[data-testid="stPlotlyChart"] .cursor-nesw-resize,
+[data-testid="stPlotlyChart"] .cursor-nwse-resize,
+[data-testid="stPlotlyChart"] .cursor-col-resize,
+[data-testid="stPlotlyChart"] .cursor-row-resize{{
+  cursor:pointer!important;
+}}
+
+/* ═══ legenda clicável abaixo das roscas ═══ */
+[data-testid="stPlotlyChart"]+div [data-testid="stButton"] button,
+div[data-testid="column"] [data-testid="stButton"] button{{
+  padding:1px 6px!important;
+  min-height:0!important;
+  height:22px!important;
+  font-size:.66rem!important;
+  line-height:1.1!important;
+  border-radius:5px!important;
+  margin-bottom:2px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}}
 </style>""", unsafe_allow_html=True)
 
 # ── Dados ──────────────────────────────────────────────────────────────────────
@@ -257,6 +297,9 @@ if pag=="🏠  Visão Geral":
 # ══════════════════════════════════════════════════════════════════════════════
 # CADASTRO E REGULARIZAÇÃO  —  com cross-filter (clique nos gráficos)
 # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# CADASTRO E REGULARIZAÇÃO  —  cross-filter
+# ══════════════════════════════════════════════════════════════════════════════
 elif pag=="📋  Cadastro e Regularização":
 
     # ── Filtros de menu ───────────────────────────────────────────────────────
@@ -276,19 +319,12 @@ elif pag=="📋  Cadastro e Regularização":
     if fc: df0=df0[df0["Categoria SNUC"].isin(fc)]
 
     # ── CROSS-FILTER ──────────────────────────────────────────────────────────
-    # Mapa: chave do gráfico -> (coluna do dataframe, campo do evento plotly)
-    XF = {
-        "r_esf":    ("Esfera",               "label"),
-        "r_seuc":   ("Cadastro do SEUC/RS",  "label"),
-        "r_cnuc":   ("CNUC",                 "label"),
-        "r_snuc":   ("CadastroSNUC",         "label"),
-        "r_grp":    ("Grupo",                "label"),
-        "snuc_bar": ("Categoria SNUC",       "x"),
-        "bio_bar":  ("Bioma",                "y"),
-    }
+    # Roscas: seleção via legenda clicável (botões) -> st.session_state["xf_<col>"]
+    # Barras: seleção via on_select do Plotly (bar emite plotly_selected)
+    COLS_ROSCA = ["Esfera","Cadastro do SEUC/RS","CNUC","CadastroSNUC","Grupo"]
+    XF_BARRA   = {"snuc_bar":("Categoria SNUC","x"), "bio_bar":("Bioma","y")}
 
-    def _leitura(key, campo):
-        """Lê a seleção de um gráfico a partir do session_state."""
+    def _ev(key, campo):
         ev = st.session_state.get(key)
         if not ev:
             return None
@@ -296,20 +332,24 @@ elif pag=="📋  Cadastro e Regularização":
             pts = ev["selection"]["points"]
         except (KeyError, TypeError):
             return None
-        if not pts:
-            return None
-        return pts[0].get(campo)
+        return pts[0].get(campo) if pts else None
 
-    # Seleções ativas: {coluna: valor}
     SEL = {}
-    for k,(coluna,campo) in XF.items():
-        v = _leitura(k, campo)
-        if v is not None:
-            SEL[coluna] = v
+    for _c in COLS_ROSCA:
+        _v = st.session_state.get(f"xf_{_c}")
+        if _v is not None:
+            SEL[_c] = _v
+    for _k,(_c,_campo) in XF_BARRA.items():
+        _v = _ev(_k,_campo)
+        if _v is not None:
+            SEL[_c] = _v
+
+    def toggle_xf(coluna, valor):
+        """Clicar de novo no mesmo item desmarca."""
+        atual = st.session_state.get(f"xf_{coluna}")
+        st.session_state[f"xf_{coluna}"] = None if atual == valor else valor
 
     def xfilter(d, exceto=None):
-        """Aplica as seleções ativas, ignorando a do próprio gráfico.
-        É isso que faz o visual clicado manter todas as suas fatias."""
         for coluna, valor in SEL.items():
             if coluna == exceto:
                 continue
@@ -317,7 +357,7 @@ elif pag=="📋  Cadastro e Regularização":
                 d = d[d[coluna].astype(str) == str(valor)]
         return d
 
-    df = xfilter(df0)          # dataframe totalmente filtrado
+    df = xfilter(df0)
 
     # ── Barra de seleção ativa ────────────────────────────────────────────────
     if SEL:
@@ -325,18 +365,17 @@ elif pag=="📋  Cadastro e Regularização":
         chips = " ".join(
             f"<span style='background:{AMAR};color:#333;padding:3px 10px;"
             f"border-radius:12px;font-size:.72rem;margin-right:6px;'>"
-            f"{c}: <b>{v}</b></span>"
-            for c,v in SEL.items()
-        )
+            f"{c}: <b>{v}</b></span>" for c,v in SEL.items())
         bc1.markdown(
             f"<div style='background:rgba(255,255,255,.65);backdrop-filter:blur(8px);"
             f"border-radius:8px;padding:8px 12px;margin-bottom:8px;'>"
             f"<span style='font-size:.72rem;color:#666;margin-right:8px;'>"
-            f"Filtro por clique:</span>{chips}</div>",
-            unsafe_allow_html=True)
+            f"Filtro por clique:</span>{chips}</div>", unsafe_allow_html=True)
         if bc2.button("✕ Limpar", key="cr_limpar", use_container_width=True):
-            for k in XF:
-                st.session_state.pop(k, None)
+            for _c in COLS_ROSCA:
+                st.session_state.pop(f"xf_{_c}", None)
+            for _k in XF_BARRA:
+                st.session_state.pop(_k, None)
             st.rerun()
 
     # ── KPIs ──────────────────────────────────────────────────────────────────
@@ -348,57 +387,58 @@ elif pag=="📋  Cadastro e Regularização":
 
     st.markdown("<br>",unsafe_allow_html=True)
 
-    # ── 5 roscas clicáveis ────────────────────────────────────────────────────
-    sec("Distribuição por categoria  ·  clique para filtrar")
+    # ── 5 roscas com legenda clicável ─────────────────────────────────────────
+    sec("Distribuição por categoria  ·  clique na legenda para filtrar")
     r1,r2,r3,r4,r5 = st.columns(5)
-
     CINZA_OFF = "#dcdcdc"
 
     def rosca(col, titulo, coluna, cmap, key):
-        # cada rosca vê os filtros dos OUTROS gráficos, não o seu próprio
         d_src = xfilter(df0, exceto=coluna)
         d = d_src[coluna].value_counts().reset_index()
         d.columns=["cat","n"]
+        col.markdown(f"<div class='st' style='font-size:.76rem;'>{titulo}</div>",
+                     unsafe_allow_html=True)
         if d.empty:
-            col.markdown(f"<div class='st' style='font-size:.76rem;'>{titulo}</div>",
-                         unsafe_allow_html=True)
             col.caption("sem dados")
             return
         total = int(d["n"].sum())
         sel_aqui = SEL.get(coluna)
-        cores = [
-            (cmap.get(c, "#bbb") if (sel_aqui is None or str(c)==str(sel_aqui))
-             else CINZA_OFF)
-            for c in d["cat"]
-        ]
+        cores = [(cmap.get(c,"#bbb") if (sel_aqui is None or str(c)==str(sel_aqui))
+                  else CINZA_OFF) for c in d["cat"]]
         fig = px.pie(d, names="cat", values="n", hole=0.50)
         fig.update_traces(
             marker=dict(colors=cores,
-                        line=dict(color="rgba(255,255,255,.85)", width=1)),
-            domain=dict(x=[0.13, 0.87], y=[0.24, 1.00]),
+                        line=dict(color="rgba(255,255,255,.85)",width=1)),
+            domain=dict(x=[0.06,0.94], y=[0.04,0.98]),
             texttemplate="%{value}<br>%{percent:.0%}",
-            textposition="inside", textfont_size=8,
+            textposition="inside", textfont_size=9,
             insidetextorientation="horizontal",
             hovertemplate="<b>%{label}</b> — %{value}<extra></extra>",
             sort=False,
         )
-        fig.add_annotation(
-            text=f"<b>{total}</b>", x=0.5, y=0.62,
+        fig.add_annotation(text=f"<b>{total}</b>", x=0.5, y=0.5,
             xref="paper", yref="paper",
-            font=dict(size=12, color=VERDE), showarrow=False,
-        )
+            font=dict(size=13,color=VERDE), showarrow=False)
         fig.update_layout(
-            margin=dict(t=4,b=4,l=4,r=4),
+            margin=dict(t=2,b=2,l=2,r=2),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font_family="Arial", font_color="#333", height=205,
-            legend=dict(orientation="h", y=0.07, x=0.5, xanchor="center",
-                        yanchor="top", font_size=8, itemwidth=30, title_text=""),
+            font_family="Arial", font_color="#333", height=170,
+            showlegend=False, dragmode=False,
         )
-        col.markdown(f"<div class='st' style='font-size:.76rem;'>{titulo}</div>",
-                     unsafe_allow_html=True)
         col.plotly_chart(fig, use_container_width=True, key=key,
-                         on_select="rerun", selection_mode="points",
-                         config={"displayModeBar":False})
+                         config={"displayModeBar":False, "staticPlot":False})
+
+        # legenda clicável — substitui a legenda do Plotly, que não filtra
+        for _, row in d.iterrows():
+            cat = str(row["cat"])
+            ativo = (sel_aqui is not None and cat == str(sel_aqui))
+            col.button(
+                ("● " if ativo else "○ ") + cat,
+                key=f"lg_{key}_{cat}",
+                on_click=toggle_xf, args=(coluna, cat),
+                use_container_width=True,
+                type=("primary" if ativo else "secondary"),
+            )
 
     rosca(r1,"Esfera","Esfera",              COR_ESF_R, "r_esf")
     rosca(r2,"SEUC",  "Cadastro do SEUC/RS", COR_SN,    "r_seuc")
@@ -422,10 +462,10 @@ elif pag=="📋  Cadastro e Regularização":
             marker_line_width=0,text=d["n"],textposition="outside",
             textfont_size=11,
             hovertemplate="<b>%{x}</b> — %{y}<extra></extra>"))
-        fig.update_layout(**LY, height=360, bargap=0,
-            xaxis=dict(showgrid=False,showline=False,tickfont_size=10),
+        fig.update_layout(**LY, height=360, bargap=0, dragmode=False,
+            xaxis=dict(showgrid=False,showline=False,tickfont_size=10,fixedrange=True),
             yaxis=dict(showgrid=False,showticklabels=False,showline=False,
-                       range=[0,d["n"].max()*1.3]))
+                       fixedrange=True, range=[0,d["n"].max()*1.3]))
         st.plotly_chart(fig, use_container_width=True, key="snuc_bar",
                         on_select="rerun", selection_mode="points",
                         config={"displayModeBar":False})
@@ -442,10 +482,10 @@ elif pag=="📋  Cadastro e Regularização":
             marker_color=cores,marker_line_width=0,text=d["n"],
             textposition="outside",textfont_size=11,
             hovertemplate="<b>%{y}</b> — %{x}<extra></extra>"))
-        fig.update_layout(**LY, height=360,
-            xaxis=dict(showgrid=False,showticklabels=False,
+        fig.update_layout(**LY, height=360, dragmode=False,
+            xaxis=dict(showgrid=False,showticklabels=False,fixedrange=True,
                        range=[0,d["n"].max()*1.3]),
-            yaxis=dict(showgrid=False,tickfont_size=10))
+            yaxis=dict(showgrid=False,tickfont_size=10,fixedrange=True))
         st.plotly_chart(fig, use_container_width=True, key="bio_bar",
                         on_select="rerun", selection_mode="points",
                         config={"displayModeBar":False})
@@ -476,9 +516,9 @@ elif pag=="📋  Cadastro e Regularização":
             fig.add_annotation(x=row["Ano de criação"],y=row["Acum"],
                 text=f"{row['Acum']/1000:.0f} Mil",
                 showarrow=False,yshift=12,font_size=9,font_color="#444")
-        fig.update_layout(**LY,height=280,
-            xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True,gridcolor="#eee",title="ha"))
+        fig.update_layout(**LY,height=280,dragmode=False,
+            xaxis=dict(showgrid=False,fixedrange=True),
+            yaxis=dict(showgrid=True,gridcolor="#eee",title="ha",fixedrange=True))
         chart(fig,280,"acum")
 
 
