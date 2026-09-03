@@ -130,6 +130,7 @@ def load_geo():
 
     with open("data/RS_Municipios_2024.geojson") as f: mg=json.load(f)
     with open("data/RS_Biomas_SCM.geojson")     as f: bg=json.load(f)
+    with open("data/RS_Biomas_simp.geojson")    as f: bs=json.load(f)
 
     for _f in bg["features"]:
         _f["geometry"]["coordinates"] = _to2d(_f["geometry"]["coordinates"])
@@ -137,10 +138,10 @@ def load_geo():
     for _f in mg["features"]:
         _f["geometry"]["coordinates"] = _to2d(_f["geometry"]["coordinates"])
 
-    return mg,bg
+    return mg,bg,bs
 
-base,bio,mun,bmap = load()
-mun_geo,bio_geo   = load_geo()
+base,bio,mun,bmap        = load()
+mun_geo,bio_geo,bio_simp = load_geo()
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 def kpi(col,num,lbl,cls=""):
@@ -289,7 +290,8 @@ elif pag=="📋  Cadastro e Regularização":
                      color="cat", color_discrete_map=cmap)
         fig.update_traces(
             # domain encolhe o donut INTEIRO dentro da área do gráfico
-            domain=dict(x=[0.18, 0.82], y=[0.30, 0.98]),
+            # (+15% de raio em relação à versão anterior)
+            domain=dict(x=[0.13, 0.87], y=[0.24, 1.00]),
             texttemplate="%{value}<br>%{percent:.0%}",
             textposition="inside", textfont_size=8,
             insidetextorientation="horizontal",
@@ -297,17 +299,17 @@ elif pag=="📋  Cadastro e Regularização":
             sort=False,
         )
         fig.add_annotation(
-            text=f"<b>{total}</b>", x=0.5, y=0.64,
+            text=f"<b>{total}</b>", x=0.5, y=0.62,
             xref="paper", yref="paper",
-            font=dict(size=11, color=VERDE), showarrow=False,
+            font=dict(size=12, color=VERDE), showarrow=False,
         )
         fig.update_layout(
             margin=dict(t=4, b=4, l=4, r=4),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             font_family="Arial", font_color="#333",
-            height=185,
-            legend=dict(orientation="h", y=0.10, x=0.5, xanchor="center",
+            height=205,
+            legend=dict(orientation="h", y=0.07, x=0.5, xanchor="center",
                         yanchor="top", font_size=8, itemwidth=30,
                         title_text=""),
         )
@@ -401,57 +403,56 @@ elif pag=="🌍  Cobertura Espacial":
     kpi(k3,f"{db['Area_ha'].sum()/100:,.1f}","Área Total (km²)","az")
     kpi(k4,db["Bioma_SCM"].nunique(),"Biomas presentes","la")
 
-    # ── Mapa de biomas — sem basemap, enquadrado ──────────────────────────────
+    # ── Mapa de biomas — coordenadas planas, sem basemap ──────────────────────
     sec("Mapa de Biomas do RS")
 
-    # Garantir id estável no GeoJSON para o choropleth
-    for _i, _f in enumerate(bio_geo["features"]):
-        _f["id"] = _f["properties"]["name"]
+    import math
 
-    d_map = pd.DataFrame({
-        "bioma": [f["properties"]["name"] for f in bio_geo["features"]]
-    })
+    # bounds globais para a projeção
+    _lons, _lats = [], []
+    for _f in bio_simp["features"]:
+        for _poly in _f["geometry"]["coordinates"]:
+            for _ring in _poly:
+                for _p in _ring:
+                    _lons.append(_p[0]); _lats.append(_p[1])
+    _lat_med = (min(_lats) + max(_lats)) / 2
+    _kx = math.cos(math.radians(_lat_med))   # corrige achatamento longitudinal
 
-    fig_m = px.choropleth(
-        d_map,
-        geojson=bio_geo,
-        locations="bioma",
-        featureidkey="properties.name",
-        color="bioma",
-        color_discrete_map=COR_BIOMA_MAPA,
-    )
-    fig_m.update_traces(
-        marker_line_color="rgba(255,255,255,0.85)",
-        marker_line_width=0.9,
-        hovertemplate="<b>%{location}</b><extra></extra>",
-    )
-    # visible=False remove TODO o basemap (oceano, terra, costas, grade)
-    fig_m.update_geos(
-        fitbounds="locations",
-        visible=False,
-        bgcolor="rgba(0,0,0,0)",
-        showframe=False,
-        showcoastlines=False,
-        showland=False,
-        showocean=False,
-        showlakes=False,
-        showcountries=False,
-        showsubunits=False,
-        lataxis_showgrid=False,
-        lonaxis_showgrid=False,
-    )
+    fig_m = go.Figure()
+    # features já vêm ordenadas por área (maior primeiro = desenha embaixo)
+    for _f in bio_simp["features"]:
+        nome = _f["properties"]["name"]
+        cor  = COR_BIOMA_MAPA.get(nome, "#aaaaaa")
+        xs, ys = [], []
+        for _poly in _f["geometry"]["coordinates"]:
+            for _ring in _poly:
+                xs.extend([p[0] * _kx for p in _ring] + [None])
+                ys.extend([p[1] for p in _ring] + [None])
+        fig_m.add_trace(go.Scatter(
+            x=xs, y=ys,
+            mode="lines",
+            fill="toself",
+            fillcolor=cor,
+            line=dict(color="rgba(255,255,255,0.9)", width=0.7),
+            name=nome,
+            hoverinfo="name",
+            hoveron="fills",
+        ))
+
     fig_m.update_layout(
         height=620,
-        margin=dict(t=0, b=0, l=0, r=0),
+        margin=dict(t=4, b=4, l=4, r=4),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font_family="Arial",
-        legend=dict(
-            orientation="h", y=-0.04, x=0.5, xanchor="center",
-            font_size=11, title_text="",
-            bgcolor="rgba(255,255,255,0.55)",
-            bordercolor="rgba(0,0,0,0.08)", borderwidth=1,
-        ),
+        xaxis=dict(visible=False, showgrid=False, zeroline=False,
+                   scaleanchor="y", scaleratio=1, fixedrange=True),
+        yaxis=dict(visible=False, showgrid=False, zeroline=False,
+                   fixedrange=True),
+        legend=dict(orientation="h", y=-0.02, x=0.5, xanchor="center",
+                    font_size=11, title_text="",
+                    bgcolor="rgba(255,255,255,0.55)",
+                    bordercolor="rgba(0,0,0,0.08)", borderwidth=1),
         dragmode=False,
     )
     st.plotly_chart(fig_m, use_container_width=True, key="mapa_bio",
