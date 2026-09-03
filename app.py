@@ -2,7 +2,13 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import json, base64
+import json, base64, re, unicodedata
+
+def slugify(txt):
+    """ASCII puro — a key do botão e o seletor CSS precisam ser idênticos."""
+    t = unicodedata.normalize("NFKD", str(txt))
+    t = t.encode("ascii", "ignore").decode()
+    return re.sub(r"\W+", "_", t).strip("_")
 
 st.set_page_config(page_title="SEUC/RS", page_icon="🌿",
                    layout="wide", initial_sidebar_state="expanded")
@@ -129,19 +135,49 @@ st.markdown(f"""<style>
   cursor:pointer!important;
 }}
 
-/* ═══ legenda clicável abaixo das roscas ═══ */
-[data-testid="stPlotlyChart"]+div [data-testid="stButton"] button,
-div[data-testid="column"] [data-testid="stButton"] button{{
-  padding:1px 6px!important;
+/* ═══ legenda clicável (pills) abaixo das roscas ═══ */
+.lg-wrap [data-testid="stButton"]{{margin:0!important;}}
+.lg-wrap [data-testid="stButton"] button,
+div[data-testid="column"] [data-testid="stButton"] button.lgbtn{{
+  all:unset;
+}}
+[data-testid="column"] [data-testid="stButton"] button{{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:6px!important;
+  padding:0 9px!important;
   min-height:0!important;
-  height:22px!important;
-  font-size:.66rem!important;
-  line-height:1.1!important;
-  border-radius:5px!important;
-  margin-bottom:2px!important;
+  height:23px!important;
+  font-size:.655rem!important;
+  font-weight:500!important;
+  line-height:1!important;
+  border-radius:12px!important;
+  margin:0 0 3px 0!important;
   white-space:nowrap!important;
   overflow:hidden!important;
   text-overflow:ellipsis!important;
+  background:rgba(255,255,255,.72)!important;
+  border:1px solid rgba(0,0,0,.10)!important;
+  color:#4a4a4a!important;
+  box-shadow:none!important;
+  transition:background .12s,border-color .12s!important;
+}}
+[data-testid="column"] [data-testid="stButton"] button:hover{{
+  background:rgba(255,255,255,.95)!important;
+  border-color:rgba(0,0,0,.22)!important;
+}}
+[data-testid="column"] [data-testid="stButton"] button p{{
+  font-size:.655rem!important;
+  font-weight:500!important;
+  margin:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}}
+/* o botão "Limpar" não é pill */
+.st-key-cr_limpar button{{
+  height:32px!important; border-radius:6px!important;
+  justify-content:center!important; font-size:.72rem!important;
 }}
 </style>""", unsafe_allow_html=True)
 
@@ -428,16 +464,32 @@ elif pag=="📋  Cadastro e Regularização":
         col.plotly_chart(fig, use_container_width=True, key=key,
                          config={"displayModeBar":False, "staticPlot":False})
 
-        # legenda clicável — substitui a legenda do Plotly, que não filtra
-        for _, row in d.iterrows():
-            cat = str(row["cat"])
-            ativo = (sel_aqui is not None and cat == str(sel_aqui))
+        # legenda em pills — CSS por botão dá a bolinha na cor da fatia
+        css = []
+        for cat, cor in zip(d["cat"], cores):
+            slug = slugify(f"lg_{key}_{cat}")
+            ativo = (sel_aqui is not None and str(cat) == str(sel_aqui))
+            cor_bolinha = cmap.get(cat, "#bbb") if (sel_aqui is None or ativo) else CINZA_OFF
+            css.append(
+                f".st-key-{slug} button::before{{content:'';display:inline-block;"
+                f"width:7px;height:7px;min-width:7px;border-radius:50%;"
+                f"background:{cor_bolinha};}}")
+            if ativo:
+                c = cmap.get(cat, "#bbb")
+                css.append(
+                    f".st-key-{slug} button{{background:{c}22!important;"
+                    f"border-color:{c}!important;color:#2b2b2b!important;}}"
+                    f".st-key-{slug} button:hover{{background:{c}33!important;}}")
+        col.markdown("<style>" + "".join(css) + "</style>", unsafe_allow_html=True)
+
+        for cat in d["cat"]:
+            cat = str(cat)
             col.button(
-                ("● " if ativo else "○ ") + cat,
-                key=f"lg_{key}_{cat}",
+                cat,
+                key=slugify(f"lg_{key}_{cat}"),
                 on_click=toggle_xf, args=(coluna, cat),
                 use_container_width=True,
-                type=("primary" if ativo else "secondary"),
+                help=f"Filtrar por {cat}",
             )
 
     rosca(r1,"Esfera","Esfera",              COR_ESF_R, "r_esf")
