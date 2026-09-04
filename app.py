@@ -748,12 +748,97 @@ elif pag=="🌍  Cobertura Espacial":
         fe2=c4.multiselect("Esfera",   sorted(base["Esfera"].dropna().unique()),          placeholder="Selecione...",key="ce_e")
         fs2=c5.multiselect("Cat. SNUC",sorted(base["Categoria SNUC"].dropna().unique()),  placeholder="Selecione...",key="ce_s")
 
-    dfc = base.copy()
-    if fb2: dfc=dfc[dfc["Bioma"].isin(fb2)]
-    if ft2: dfc=dfc[dfc["NomenclaturaSNUC"].isin(ft2)]
-    if fg2: dfc=dfc[dfc["Grupo"].isin(fg2)]
-    if fe2: dfc=dfc[dfc["Esfera"].isin(fe2)]
-    if fs2: dfc=dfc[dfc["Categoria SNUC"].isin(fs2)]
+    dfb = base.copy()
+    if fb2: dfb=dfb[dfb["Bioma"].isin(fb2)]
+    if ft2: dfb=dfb[dfb["NomenclaturaSNUC"].isin(ft2)]
+    if fg2: dfb=dfb[dfb["Grupo"].isin(fg2)]
+    if fe2: dfb=dfb[dfb["Esfera"].isin(fe2)]
+    if fs2: dfb=dfb[dfb["Categoria SNUC"].isin(fs2)]
+
+    # ── CROSS-FILTER ─────────────────────────────────────────────────────────
+    XF_CE = {
+        "ce_snuc":    ("Categoria SNUC", "x"),
+        "ce_biomas":  ("Bioma",          "y"),
+        "ce_criadas": ("Ano de criação", "x"),
+    }
+
+    def _ev_ce(key, campo):
+        ev = st.session_state.get(key)
+        if not ev:
+            return None
+        try:
+            pts = ev["selection"]["points"]
+        except (KeyError, TypeError):
+            return None
+        if not pts:
+            return None
+        vals = [p.get(campo) for p in pts if p.get(campo) is not None]
+        return vals or None
+
+    SEL_CE = {}
+    for _k,(_c,_campo) in XF_CE.items():
+        _v = _ev_ce(_k,_campo)
+        if _v is not None:
+            SEL_CE[_c] = _v
+    # clique no mapa filtra por município (via customdata do ponto)
+    _mun_sel = None
+    _evm = st.session_state.get("mapa_ce")
+    if _evm:
+        try:
+            _p = _evm["selection"]["points"]
+            _mun_sel = [x["customdata"][0] for x in _p
+                        if x.get("customdata")] or None
+        except (KeyError, TypeError, IndexError):
+            _mun_sel = None
+
+    def xf_ce(d, exceto=None):
+        for coluna, valores in SEL_CE.items():
+            if coluna == exceto or coluna not in d.columns:
+                continue
+            serie = d[coluna]
+            if pd.api.types.is_numeric_dtype(serie):
+                alvo=set()
+                for v in valores:
+                    try: alvo.add(float(v))
+                    except (TypeError,ValueError): pass
+                d = d[serie.astype(float).isin(alvo)]
+            else:
+                d = d[serie.astype(str).isin({str(v) for v in valores})]
+        if _mun_sel and exceto != "_mun":
+            cods = mun[mun["Municípios_1"].apply(
+                lambda m: (loc_municipio(m) or {}).get("nome")).isin(_mun_sel)]["Código"]
+            d = d[d["Código"].isin(cods)]
+        return d
+
+    dfc = xf_ce(dfb)
+
+    # ── barra de seleção ativa ───────────────────────────────────────────────
+    _chips = dict(SEL_CE)
+    if _mun_sel: _chips["Município"] = _mun_sel
+    if _chips:
+        bc1,bc2 = st.columns([5,1])
+        def _rot(v):
+            if len(v)==1: 
+                try: return f"{int(float(v[0]))}"
+                except (TypeError,ValueError): return str(v[0])
+            try:
+                n=[float(x) for x in v]
+                return f"{int(min(n))}–{int(max(n))}"
+            except (TypeError,ValueError):
+                return f"{len(v)} itens"
+        chips=" ".join(
+            f"<span style='background:{AMAR};color:#333;padding:3px 10px;"
+            f"border-radius:12px;font-size:.72rem;margin-right:6px;'>"
+            f"{c}: <b>{_rot(v)}</b></span>" for c,v in _chips.items())
+        bc1.markdown(
+            f"<div style='background:rgba(255,255,255,.65);backdrop-filter:blur(8px);"
+            f"border-radius:8px;padding:8px 12px;margin-bottom:8px;'>"
+            f"<span style='font-size:.72rem;color:#666;margin-right:8px;'>"
+            f"Filtro por clique:</span>{chips}</div>", unsafe_allow_html=True)
+        if bc2.button("✕ Limpar", key="ce_limpar", use_container_width=True):
+            for _k in list(XF_CE)+["mapa_ce"]:
+                st.session_state.pop(_k, None)
+            st.rerun()
 
     db = bio[bio["Código"].isin(dfc["Código"])] if "Código" in bio.columns else bio
 
@@ -765,14 +850,14 @@ elif pag=="🌍  Cobertura Espacial":
     kpi(k3,(dfc["ANP_UC"]=="Área natural protegida").sum(),"Áreas Naturais Protegidas","az")
     kpi(k4,dfc["Código"].nunique(),"Áreas Protegidas no RS","la")
 
-    # ── 7 medidores de cobertura por bioma ───────────────────────────────────
+    # ── 7 medidores ──────────────────────────────────────────────────────────
     _g   = dfc.groupby("Bioma")["Área poligonal (ha)"].sum()
     _MA  = _g.get("Mata Atlântica",0.0)
     _PA  = _g.get("Pampa",0.0)
     _CM  = _g.get("Costeiro-Marinho",0.0)
     _MAC = _g.get("Mata Atlântica, Costeiro-Marinho",0.0)
     _PAC = _g.get("Pampa, Costeiro-Marinho",0.0)
-    _CMT = _CM + _MAC + _PAC          # Costeiro-Marinho consolidado
+    _CMT = _CM + _MAC + _PAC
 
     MEDIDORES = [
         ("Mata Atlântica",       _MA),
@@ -781,7 +866,6 @@ elif pag=="🌍  Cobertura Espacial":
         ("Pampa + SCM",          _PAC),
         ("Costeiro-Marinho",     _CMT),
         ("Continental",          _MA + _PA),
-        # replica a medida original: soma as parcelas costeiras e o consolidado
         ("Marinho",              _MAC + _PAC + _CMT),
     ]
 
@@ -790,37 +874,29 @@ elif pag=="🌍  Cobertura Espacial":
     for col,(nome,area) in zip(gcols, MEDIDORES):
         pct = (area / A_TOT * 100) if A_TOT else 0
         fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=pct,
+            mode="gauge+number", value=pct,
             number=dict(suffix="%", font=dict(size=17, color="#333"),
                         valueformat=".2f"),
-            gauge=dict(
-                axis=dict(range=[0,100], visible=False),
-                bar=dict(color=AZUL_BORDA, thickness=.34),
-                bgcolor="rgba(0,0,0,0)",
-                borderwidth=0,
-                steps=[dict(range=[0,100], color="#e6e6e6")],
-            ),
+            gauge=dict(axis=dict(range=[0,100], visible=False),
+                       bar=dict(color=AZUL_BORDA, thickness=.34),
+                       bgcolor="rgba(0,0,0,0)", borderwidth=0,
+                       steps=[dict(range=[0,100], color="#e6e6e6")]),
             domain=dict(x=[0,1], y=[0,1]),
         ))
-        fig.update_layout(
-            height=125, margin=dict(t=6,b=0,l=6,r=6),
+        fig.update_layout(height=125, margin=dict(t=6,b=0,l=6,r=6),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font_family="Century Gothic, Questrial, Didact Gothic, sans-serif",
-        )
-        col.markdown(
-            f"<div style='font-size:.68rem;text-align:center;color:#555;"
-            f"height:26px;line-height:1.15;'>{nome}</div>",
-            unsafe_allow_html=True)
+            font_family="Century Gothic, Questrial, Didact Gothic, sans-serif")
+        col.markdown(f"<div style='font-size:.68rem;text-align:center;color:#555;"
+                     f"height:26px;line-height:1.15;'>{nome}</div>",
+                     unsafe_allow_html=True)
         col.plotly_chart(fig,use_container_width=True,
                          key=f"gauge_{slugify(nome)}",
                          config={"displayModeBar":False})
-        col.markdown(
-            f"<div style='text-align:center;margin-top:-10px;'>"
-            f"<div style='font-size:.78rem;font-weight:700;color:{VERDE};'>"
-            f"{area:,.2f}</div>"
-            f"<div style='font-size:.62rem;color:#777;'>Área (ha)</div></div>",
-            unsafe_allow_html=True)
+        col.markdown(f"<div style='text-align:center;margin-top:-10px;'>"
+                     f"<div style='font-size:.78rem;font-weight:700;color:{VERDE};'>"
+                     f"{area:,.2f}</div>"
+                     f"<div style='font-size:.62rem;color:#777;'>Área (ha)</div></div>",
+                     unsafe_allow_html=True)
 
     # ── tabela ───────────────────────────────────────────────────────────────
     sec("Unidades de Conservação")
@@ -829,8 +905,9 @@ elif pag=="🌍  Cobertura Espacial":
     st.dataframe(dfc[[c for c in ct if c in dfc.columns]].reset_index(drop=True),
                  use_container_width=True,height=230)
 
-    # ── mapa com basemap + cards laterais ────────────────────────────────────
-    pts = mun[mun["Código"].isin(dfc["Código"])].copy()
+    # ── mapa + cards laterais ────────────────────────────────────────────────
+    _dmapa = xf_ce(dfb, exceto="_mun")      # o mapa não filtra a si mesmo
+    pts = mun[mun["Código"].isin(_dmapa["Código"])].copy()
     pts["_c"] = pts["Municípios_1"].apply(loc_municipio)
     pts = pts[pts["_c"].notna()]
     pts["lon"]=pts["_c"].apply(lambda c:c["lon"])
@@ -839,23 +916,20 @@ elif pag=="🌍  Cobertura Espacial":
 
     n_fora = pts[pts["mun"].str.endswith("- SC")]["Código"].nunique()
 
-    sec("Municípios")
+    sec("Municípios  ·  clique num ponto para filtrar")
     mcol,ccol = st.columns([4,1])
 
     with mcol:
-        # Plotly 6 renomeou os traces de mapa (mapbox -> map). Detecta o que existe.
         _NOVO = hasattr(go, "Choroplethmap")
         Choro  = go.Choroplethmap  if _NOVO else go.Choroplethmapbox
         Scat   = go.Scattermap     if _NOVO else go.Scattermapbox
 
         fig_m = go.Figure()
-        # máscara dos biomas sobre o basemap
         for _f in bio_simp["features"]:
             nome=_f["properties"]["name"]
             fig_m.add_trace(Choro(
                 geojson={"type":"FeatureCollection","features":[_f]},
-                locations=[nome], z=[1],
-                featureidkey="properties.name",
+                locations=[nome], z=[1], featureidkey="properties.name",
                 colorscale=[[0,COR_BIOMA_MAPA.get(nome,"#aaa")],
                             [1,COR_BIOMA_MAPA.get(nome,"#aaa")]],
                 showscale=False,
@@ -863,15 +937,17 @@ elif pag=="🌍  Cobertura Espacial":
                 name=nome, showlegend=True,
                 hovertemplate=f"<b>{nome}</b><extra></extra>",
             ))
-        # pontos das UCs
         if not pts.empty:
             agr=(pts.groupby(["mun","lon","lat"])
                    .agg(n=("Código","nunique"),
                         nomes=("Nome",lambda s:", ".join(list(s)[:4])))
                    .reset_index())
+            _on_m = (lambda m: (not _mun_sel) or m in set(_mun_sel))
+            cor_m = [("#1f77d0" if _on_m(m) else "#b9c4cc") for m in agr["mun"]]
+            tam_m = [(14 if (_mun_sel and _on_m(m)) else 11) for m in agr["mun"]]
             fig_m.add_trace(Scat(
                 lon=agr["lon"], lat=agr["lat"], mode="markers",
-                marker=dict(size=11, color="#1f77d0"),
+                marker=dict(size=tam_m, color=cor_m),
                 customdata=agr[["mun","n","nomes"]],
                 hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]} UC(s)"
                               "<br><span style='font-size:11px'>%{customdata[2]}"
@@ -879,13 +955,10 @@ elif pag=="🌍  Cobertura Espacial":
                 name="UCs", showlegend=False,
             ))
 
-        _cfg_mapa = dict(
-            style="carto-positron",          # basemap cinza claro, sem token
-            center=dict(lat=-29.8, lon=-53.2),
-            zoom=5.35,
-        )
-        if _NOVO: fig_m.update_layout(map=_cfg_mapa)
-        else:     fig_m.update_layout(mapbox=_cfg_mapa)
+        _cfg = dict(style="carto-positron",
+                    center=dict(lat=-29.8, lon=-53.2), zoom=5.35)
+        if _NOVO: fig_m.update_layout(map=_cfg)
+        else:     fig_m.update_layout(mapbox=_cfg)
 
         fig_m.update_layout(
             height=600, margin=dict(t=0,b=0,l=0,r=0),
@@ -897,6 +970,7 @@ elif pag=="🌍  Cobertura Espacial":
                         bordercolor="rgba(0,0,0,0.08)",borderwidth=1),
         )
         st.plotly_chart(fig_m,use_container_width=True,key="mapa_ce",
+                        on_select="rerun", selection_mode="points",
                         config={"displayModeBar":False,"scrollZoom":False})
 
     with ccol:
@@ -911,50 +985,66 @@ elif pag=="🌍  Cobertura Espacial":
               <div class='kpi-l' style='font-style:italic;'>{lab}</div>
             </div>""",unsafe_allow_html=True)
 
-    # ── SNUC + Biomas ────────────────────────────────────────────────────────
+    # ── SNUC + Biomas (clicáveis) ────────────────────────────────────────────
+    CINZA_OFF="#dcdcdc"
     g1,g2=st.columns(2)
     with g1:
         sec("SNUC")
-        d=dfc["Categoria SNUC"].value_counts().reset_index()
+        d=xf_ce(dfb,exceto="Categoria SNUC")["Categoria SNUC"].value_counts().reset_index()
         d.columns=["cat","n"]; d=d.sort_values("cat")
+        _s=SEL_CE.get("Categoria SNUC")
+        _on=(lambda c: _s is None or str(c) in {str(x) for x in _s})
+        cor=[(AZUL_CLARO if _on(c) else CINZA_OFF) for c in d["cat"]]
         fig=go.Figure(go.Bar(x=d["cat"],y=d["n"],
-            marker=dict(color=AZUL_CLARO,line=dict(width=0)),
+            marker=dict(color=cor,line=dict(width=0)),
             text=d["n"],textposition="outside",textfont_size=11,
             hovertemplate="<b>%{x}</b> — %{y}<extra></extra>"))
-        fig.update_layout(**LY,height=320,bargap=0,
-            xaxis=dict(showgrid=False,showline=False,tickfont_size=10),
+        fig.update_layout(**LY,height=320,bargap=0,dragmode=False,
+            xaxis=dict(showgrid=False,showline=False,tickfont_size=10,fixedrange=True),
             yaxis=dict(showgrid=False,showticklabels=False,showline=False,
-                       range=[0,d["n"].max()*1.3]))
-        chart(fig,320,"ce_snuc")
+                       fixedrange=True,range=[0,d["n"].max()*1.3]))
+        st.plotly_chart(fig,use_container_width=True,key="ce_snuc",
+                        on_select="rerun",selection_mode="points",
+                        config={"displayModeBar":False})
     with g2:
         sec("Biomas")
-        d=dfc["Bioma"].value_counts().reset_index()
+        d=xf_ce(dfb,exceto="Bioma")["Bioma"].value_counts().reset_index()
         d.columns=["b","n"]; d=d.sort_values("n",ascending=True)
+        _s=SEL_CE.get("Bioma")
+        _on=(lambda b: _s is None or str(b) in {str(x) for x in _s})
+        cor=[("#4ab8a8" if _on(b) else CINZA_OFF) for b in d["b"]]
         fig=go.Figure(go.Bar(x=d["n"],y=d["b"],orientation="h",
-            marker=dict(color="#4ab8a8",line=dict(width=0)),
+            marker=dict(color=cor,line=dict(width=0)),
             text=d["n"],textposition="outside",textfont_size=11,
             hovertemplate="<b>%{y}</b> — %{x}<extra></extra>"))
-        fig.update_layout(**LY,height=320,
-            xaxis=dict(showgrid=False,showticklabels=False,
+        fig.update_layout(**LY,height=320,dragmode=False,
+            xaxis=dict(showgrid=False,showticklabels=False,fixedrange=True,
                        range=[0,d["n"].max()*1.3]),
-            yaxis=dict(showgrid=False,tickfont_size=10))
-        chart(fig,320,"ce_biomas")
+            yaxis=dict(showgrid=False,tickfont_size=10,fixedrange=True))
+        st.plotly_chart(fig,use_container_width=True,key="ce_biomas",
+                        on_select="rerun",selection_mode="points",
+                        config={"displayModeBar":False})
 
-    # ── áreas criadas por ano ────────────────────────────────────────────────
+    # ── áreas criadas (clicável) ─────────────────────────────────────────────
     sec("Áreas criadas")
-    da=dfc.dropna(subset=["Ano de criação"]).copy()
+    da=xf_ce(dfb,exceto="Ano de criação").dropna(subset=["Ano de criação"]).copy()
     if da.empty:
         st.caption("Sem UCs com ano de criação para a seleção atual.")
     else:
         da["Ano de criação"]=da["Ano de criação"].astype(int)
         dc=da.groupby("Ano de criação").size().reset_index(name="n")
+        _s=SEL_CE.get("Ano de criação")
+        _on=(lambda a: _s is None or a in {int(float(x)) for x in _s})
+        cor=[(AZUL_CLARO if _on(a) else CINZA_OFF) for a in dc["Ano de criação"]]
         fig=go.Figure(go.Bar(x=dc["Ano de criação"],y=dc["n"],
-            marker=dict(color=AZUL_CLARO,line=dict(width=0)),
+            marker=dict(color=cor,line=dict(width=0)),
             hovertemplate="<b>%{x}</b> — %{y} UC(s)<extra></extra>"))
-        fig.update_layout(**LY,height=250,bargap=.15,
-            xaxis=dict(showgrid=False,dtick=10,tickfont_size=10),
-            yaxis=dict(showgrid=False,showticklabels=False))
-        chart(fig,250,"ce_criadas")
+        fig.update_layout(**LY,height=250,bargap=.15,dragmode=False,
+            xaxis=dict(showgrid=False,dtick=10,tickfont_size=10,fixedrange=True),
+            yaxis=dict(showgrid=False,showticklabels=False,fixedrange=True))
+        st.plotly_chart(fig,use_container_width=True,key="ce_criadas",
+                        on_select="rerun",selection_mode="points",
+                        config={"displayModeBar":False})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
