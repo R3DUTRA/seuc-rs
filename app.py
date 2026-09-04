@@ -57,6 +57,25 @@ button, input, select, textarea, label, p, div, span, h1, h2, h3, h4, h5, h6,
   font-family:{FONTE}!important;
 }}
 
+/* Os ícones do Streamlit (seta do expander, X dos filtros) são ligaduras da
+   fonte Material Symbols. Sem ela o nome do ícone aparece como texto cru
+   ("arrow_drop_down"), então a regra global acima não pode alcançá-los. */
+[data-testid="stIconMaterial"],
+[data-testid="stExpanderToggleIcon"],
+span[data-testid="stIconMaterial"],
+.material-symbols-rounded, .material-symbols-outlined,
+.material-icons, .material-icons-outlined, .material-icons-rounded,
+[class*="material-symbols"], [class*="material-icons"],
+[data-baseweb="icon"] i, i[class*="icon"] {{
+  font-family:'Material Symbols Rounded','Material Symbols Outlined',
+              'Material Icons'!important;
+  font-feature-settings:'liga'!important;
+  -webkit-font-feature-settings:'liga'!important;
+  font-variant-ligatures:common-ligatures!important;
+  text-transform:none!important;
+  letter-spacing:normal!important;
+}}
+
 /* fundo */
 [data-testid="stAppViewContainer"]>.main{{
   background-image:url("data:image/jpeg;base64,{_BG}") !important;
