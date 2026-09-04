@@ -18,6 +18,8 @@ VERDE  = "#1A5C2A"
 VERDE2 = "#2E7D32"
 AMAR   = "#FFD600"
 AZUL   = "#6a9ab0"      # cor única para barras
+AZUL_CLARO = "#a8d5f5"  # preenchimento das barras (estilo Power BI)
+AZUL_BORDA = "#2196f3"  # borda das barras
 BRANCO = "#FFFFFF"
 
 PAL_ROSCA = ["#5b7fa6","#4a8c5c","#a67c5b","#c5cfc5","#8fae8f","#9b8fb0"]
@@ -361,6 +363,7 @@ elif pag=="📋  Cadastro e Regularização":
     XF_BARRA   = {"snuc_bar":("Categoria SNUC","x"), "bio_bar":("Bioma","y")}
 
     def _ev(key, campo):
+        """Devolve TODOS os valores selecionados — permite intervalo/múltiplos."""
         ev = st.session_state.get(key)
         if not ev:
             return None
@@ -368,17 +371,24 @@ elif pag=="📋  Cadastro e Regularização":
             pts = ev["selection"]["points"]
         except (KeyError, TypeError):
             return None
-        return pts[0].get(campo) if pts else None
+        if not pts:
+            return None
+        vals = [p.get(campo) for p in pts if p.get(campo) is not None]
+        return vals or None
 
+    # SEL guarda sempre LISTA de valores -> suporta clique único e intervalo
     SEL = {}
     for _c in COLS_ROSCA:
         _v = st.session_state.get(f"xf_{_c}")
         if _v is not None:
-            SEL[_c] = _v
+            SEL[_c] = [_v]
     for _k,(_c,_campo) in XF_BARRA.items():
         _v = _ev(_k,_campo)
         if _v is not None:
             SEL[_c] = _v
+    _anos = _ev("acum", "x")
+    if _anos:
+        SEL["Ano de criação"] = _anos
 
     def toggle_xf(coluna, valor):
         """Clicar de novo no mesmo item desmarca."""
@@ -386,14 +396,39 @@ elif pag=="📋  Cadastro e Regularização":
         st.session_state[f"xf_{coluna}"] = None if atual == valor else valor
 
     def xfilter(d, exceto=None):
-        for coluna, valor in SEL.items():
-            if coluna == exceto:
+        for coluna, valores in SEL.items():
+            if coluna == exceto or coluna not in d.columns:
                 continue
-            if coluna in d.columns:
-                d = d[d[coluna].astype(str) == str(valor)]
+            serie = d[coluna]
+            if pd.api.types.is_numeric_dtype(serie):
+                # o Plotly devolve 2000.0; a coluna pode ser int64 -> comparar como número
+                alvo = set()
+                for v in valores:
+                    try:
+                        alvo.add(float(v))
+                    except (TypeError, ValueError):
+                        pass
+                d = d[serie.astype(float).isin(alvo)]
+            else:
+                d = d[serie.astype(str).isin({str(v) for v in valores})]
         return d
 
     df = xfilter(df0)
+
+    def _rotulo(vals):
+        """Texto do chip: valor único, intervalo de anos ou contagem."""
+        nums = []
+        for v in vals:
+            try:
+                nums.append(float(v))
+            except (TypeError, ValueError):
+                pass
+        todos_num = len(nums) == len(vals) and nums
+        if len(vals) == 1:
+            return f"{int(nums[0])}" if todos_num and nums[0].is_integer() else str(vals[0])
+        if todos_num:
+            return f"{int(min(nums))}–{int(max(nums))}"
+        return f"{len(vals)} itens"
 
     # ── Barra de seleção ativa ────────────────────────────────────────────────
     if SEL:
@@ -401,7 +436,7 @@ elif pag=="📋  Cadastro e Regularização":
         chips = " ".join(
             f"<span style='background:{AMAR};color:#333;padding:3px 10px;"
             f"border-radius:12px;font-size:.72rem;margin-right:6px;'>"
-            f"{c}: <b>{v}</b></span>" for c,v in SEL.items())
+            f"{c}: <b>{_rotulo(v)}</b></span>" for c,v in SEL.items())
         bc1.markdown(
             f"<div style='background:rgba(255,255,255,.65);backdrop-filter:blur(8px);"
             f"border-radius:8px;padding:8px 12px;margin-bottom:8px;'>"
@@ -412,6 +447,7 @@ elif pag=="📋  Cadastro e Regularização":
                 st.session_state.pop(f"xf_{_c}", None)
             for _k in XF_BARRA:
                 st.session_state.pop(_k, None)
+            st.session_state.pop("acum", None)
             st.rerun()
 
     # ── KPIs ──────────────────────────────────────────────────────────────────
@@ -508,11 +544,12 @@ elif pag=="📋  Cadastro e Regularização":
         d = d_src["Categoria SNUC"].value_counts().reset_index()
         d.columns=["cat","n"]; d=d.sort_values("cat")
         sel_aqui = SEL.get("Categoria SNUC")
-        cores = [(AZUL if (sel_aqui is None or str(c)==str(sel_aqui)) else CINZA_OFF)
-                 for c in d["cat"]]
-        fig=go.Figure(go.Bar(x=d["cat"],y=d["n"],marker_color=cores,
-            marker_line_width=0,text=d["n"],textposition="outside",
-            textfont_size=11,
+        _on = (lambda c: sel_aqui is None or str(c) in {str(x) for x in sel_aqui})
+        fill   = [(AZUL_CLARO if _on(c) else CINZA_OFF)   for c in d["cat"]]
+        borda  = [(AZUL_BORDA if _on(c) else "#c4c4c4")   for c in d["cat"]]
+        fig=go.Figure(go.Bar(x=d["cat"],y=d["n"],
+            marker=dict(color=fill, line=dict(color=borda, width=2.2)),
+            text=d["n"],textposition="outside",textfont_size=11,
             hovertemplate="<b>%{x}</b> — %{y}<extra></extra>"))
         fig.update_layout(**LY, height=360, bargap=0, dragmode=False,
             xaxis=dict(showgrid=False,showline=False,tickfont_size=10,fixedrange=True),
@@ -528,11 +565,12 @@ elif pag=="📋  Cadastro e Regularização":
         d = d_src["Bioma"].value_counts().reset_index()
         d.columns=["b","n"]; d=d.sort_values("n",ascending=True)
         sel_aqui = SEL.get("Bioma")
-        cores = [(AZUL if (sel_aqui is None or str(b)==str(sel_aqui)) else CINZA_OFF)
-                 for b in d["b"]]
+        _on = (lambda b: sel_aqui is None or str(b) in {str(x) for x in sel_aqui})
+        fill  = [(AZUL_CLARO if _on(b) else CINZA_OFF) for b in d["b"]]
+        borda = [(AZUL_BORDA if _on(b) else "#c4c4c4") for b in d["b"]]
         fig=go.Figure(go.Bar(x=d["n"],y=d["b"],orientation="h",
-            marker_color=cores,marker_line_width=0,text=d["n"],
-            textposition="outside",textfont_size=11,
+            marker=dict(color=fill, line=dict(color=borda, width=2.2)),
+            text=d["n"],textposition="outside",textfont_size=11,
             hovertemplate="<b>%{y}</b> — %{x}<extra></extra>"))
         fig.update_layout(**LY, height=360, dragmode=False,
             xaxis=dict(showgrid=False,showticklabels=False,fixedrange=True,
@@ -549,9 +587,10 @@ elif pag=="📋  Cadastro e Regularização":
     st.dataframe(df[[c for c in cols_t if c in df.columns]].reset_index(drop=True),
                  use_container_width=True,height=240)
 
-    # ── área acumulada ────────────────────────────────────────────────────────
-    sec("Área acumulada (ha)")
-    dt=df.dropna(subset=["Ano de criação"]).copy()
+    # ── área acumulada (clicável: ponto = ano, arrasto = intervalo) ───────────
+    sec("Área acumulada (ha)  ·  clique num ano ou arraste para um período")
+    d_ac = xfilter(df0, exceto="Ano de criação")
+    dt = d_ac.dropna(subset=["Ano de criação"]).copy()
     if dt.empty:
         st.caption("Sem UCs com ano de criação para a seleção atual.")
     else:
@@ -559,19 +598,34 @@ elif pag=="📋  Cadastro e Regularização":
         dt=dt.sort_values("Ano de criação")
         dt["Acum"]=dt["Área poligonal (ha)"].cumsum()
         ag=dt.groupby("Ano de criação")["Acum"].max().reset_index()
-        fig=px.area(ag,x="Ano de criação",y="Acum",
-                    color_discrete_sequence=[VERDE2])
-        fig.update_traces(line_color=VERDE,fillcolor="rgba(46,125,50,.18)",
-            hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>")
+
+        anos_sel = SEL.get("Ano de criação")
+        _on = (lambda a: anos_sel is None or a in {int(float(x)) for x in anos_sel})
+        cor_pt = [(VERDE if _on(a) else "#c9c9c9") for a in ag["Ano de criação"]]
+        tam_pt = [(9 if (anos_sel is not None and _on(a)) else 5)
+                  for a in ag["Ano de criação"]]
+
+        fig=go.Figure(go.Scatter(
+            x=ag["Ano de criação"], y=ag["Acum"],
+            mode="lines+markers", fill="tozeroy",
+            line=dict(color=AZUL_BORDA, width=2.2),
+            fillcolor="rgba(168,213,245,.45)",
+            marker=dict(color=cor_pt, size=tam_pt,
+                        line=dict(color="white", width=1)),
+            hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>",
+        ))
         for _,row in ag[ag["Ano de criação"].isin(
                 [1960,1970,1980,1990,2000,2010,2020])].iterrows():
             fig.add_annotation(x=row["Ano de criação"],y=row["Acum"],
                 text=f"{row['Acum']/1000:.0f} Mil",
-                showarrow=False,yshift=12,font_size=9,font_color="#444")
-        fig.update_layout(**LY,height=280,dragmode=False,
-            xaxis=dict(showgrid=False,fixedrange=True),
+                showarrow=False,yshift=14,font_size=9,font_color="#444")
+        fig.update_layout(**LY,height=300,
+            dragmode="select", selectdirection="h",
+            xaxis=dict(showgrid=False,fixedrange=True,title=""),
             yaxis=dict(showgrid=True,gridcolor="#eee",title="ha",fixedrange=True))
-        chart(fig,280,"acum")
+        st.plotly_chart(fig, use_container_width=True, key="acum",
+                        on_select="rerun", selection_mode=("points","box"),
+                        config={"displayModeBar":False})
 
 
 
