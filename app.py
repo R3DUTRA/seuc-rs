@@ -40,7 +40,23 @@ with open("data/bg_v3.jpg","rb") as _f:
     _BG = base64.b64encode(_f.read()).decode()
 
 # ── CSS ────────────────────────────────────────────────────────────────────────
+# Century Gothic é licenciada (vem com o Office) e não existe no servidor Linux
+# nem em celulares. Questrial é a alternativa livre mais próxima — mesma
+# construção geométrica — e é carregada do Google Fonts como reserva.
+FONTE = "'Century Gothic', 'Questrial', 'Didact Gothic', 'Futura', sans-serif"
+
 st.markdown(f"""<style>
+@import url('https://fonts.googleapis.com/css2?family=Questrial&family=Didact+Gothic&display=swap');
+
+/* tipografia global */
+html, body, [class*="css"], [data-testid="stAppViewContainer"],
+[data-testid="stSidebar"], .block-container, .stMarkdown,
+button, input, select, textarea, label, p, div, span, h1, h2, h3, h4, h5, h6,
+[data-testid="stDataFrame"], [data-testid="stMetricValue"],
+[data-baseweb="select"], [data-baseweb="tag"], [data-baseweb="popover"] {{
+  font-family:{FONTE}!important;
+}}
+
 /* fundo */
 [data-testid="stAppViewContainer"]>.main{{
   background-image:url("data:image/jpeg;base64,{_BG}") !important;
@@ -69,25 +85,20 @@ st.markdown(f"""<style>
 /* seção */
 .st{{font-size:.9rem;font-weight:700;color:{VERDE};
   border-bottom:2px solid {AMAR};padding-bottom:3px;margin:14px 0 6px;}}
-/* glassmorphism nos charts e tabelas + moldura cinza clara arredondada */
+/* glassmorphism nos charts e tabelas — sem moldura */
 [data-testid="stPlotlyChart"]>div{{
   background:rgba(255,255,255,.52)!important;
   backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;
-  border:1px solid #dcdcdc!important;
   border-radius:12px!important;
-  padding:6px!important;
-  overflow:hidden!important;
-  box-shadow:0 1px 3px rgba(0,0,0,.04)!important;}}
+  overflow:hidden!important;}}
 [data-testid="stDataFrame"]>div{{
   background:rgba(255,255,255,.62)!important;
   backdrop-filter:blur(10px)!important;
-  border:1px solid #dcdcdc!important;
   border-radius:12px!important;
-  overflow:hidden!important;
-  box-shadow:0 1px 3px rgba(0,0,0,.04)!important;}}
+  overflow:hidden!important;}}
 [data-testid="stExpander"]{{background:rgba(255,255,255,.62)!important;
   backdrop-filter:blur(12px)!important;border-radius:12px!important;
-  border:1px solid #dcdcdc!important;}}
+  border:1px solid rgba(200,200,200,.45)!important;}}
 
 /* ═══ ELIMINAR TODA barra de rolagem dos gráficos Plotly ═══ */
 [data-testid="stPlotlyChart"],
@@ -239,7 +250,7 @@ def sec(t):
 LY = dict(margin=dict(t=30,b=10,l=10,r=10),
           paper_bgcolor="rgba(0,0,0,0)",
           plot_bgcolor="rgba(0,0,0,0)",
-          font_family="Arial",
+          font_family="Century Gothic, Questrial, Didact Gothic, sans-serif",
           font_color="#333")
 
 def chart(fig, h, key):
@@ -522,7 +533,7 @@ elif pag=="📋  Cadastro e Regularização":
         fig.update_layout(
             margin=dict(t=2,b=2,l=2,r=2),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font_family="Arial", font_color="#333", height=170,
+            font_family="Century Gothic, Questrial, Didact Gothic, sans-serif", font_color="#333", height=170,
             showlegend=False, dragmode=False,
         )
         col.plotly_chart(fig, use_container_width=True, key=key,
@@ -740,7 +751,7 @@ elif pag=="🌍  Cobertura Espacial":
         margin=dict(t=4, b=4, l=4, r=4),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font_family="Arial",
+        font_family="Century Gothic, Questrial, Didact Gothic, sans-serif",
         xaxis=dict(visible=False, showgrid=False, zeroline=False,
                    scaleanchor="y", scaleratio=1, fixedrange=True),
         yaxis=dict(visible=False, showgrid=False, zeroline=False,
