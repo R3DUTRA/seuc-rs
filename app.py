@@ -349,6 +349,11 @@ elif pag=="📋  Cadastro e Regularização":
         fe = c4.multiselect("Esfera",  sorted(base["Esfera"].dropna().unique()),           placeholder="Selecione...",key="cr_e")
         fc = c5.multiselect("Cat. SNUC",sorted(base["Categoria SNUC"].dropna().unique()),  placeholder="Selecione...",key="cr_c")
 
+        _an = pd.to_numeric(base["Ano de criação"], errors="coerce").dropna()
+        ANO_MIN, ANO_MAX = int(_an.min()), int(_an.max())
+        periodo = st.slider("Período de criação", ANO_MIN, ANO_MAX,
+                            (ANO_MIN, ANO_MAX), key="cr_per")
+
     df0 = base.copy()
     if fb: df0=df0[df0["Bioma"].isin(fb)]
     if ft: df0=df0[df0["NomenclaturaSNUC"].isin(ft)]
@@ -386,9 +391,16 @@ elif pag=="📋  Cadastro e Regularização":
         _v = _ev(_k,_campo)
         if _v is not None:
             SEL[_c] = _v
-    _anos = _ev("acum", "x")
-    if _anos:
-        SEL["Ano de criação"] = _anos
+    # Ano: combina o slider de período com o clique/arrasto no gráfico
+    _anos_click  = _ev("acum", "x")
+    _slider_ativo = (periodo[0] != ANO_MIN or periodo[1] != ANO_MAX)
+    if _anos_click:
+        _alvo = [a for a in _anos_click
+                 if periodo[0] <= float(a) <= periodo[1]] if _slider_ativo else _anos_click
+        if _alvo:
+            SEL["Ano de criação"] = _alvo
+    elif _slider_ativo:
+        SEL["Ano de criação"] = list(range(periodo[0], periodo[1]+1))
 
     def toggle_xf(coluna, valor):
         """Clicar de novo no mesmo item desmarca."""
@@ -605,8 +617,10 @@ elif pag=="📋  Cadastro e Regularização":
         tam_pt = [(9 if (anos_sel is not None and _on(a)) else 5)
                   for a in ag["Ano de criação"]]
 
+        _ymax = float(ag["Acum"].max()) * 1.12
+
         fig=go.Figure()
-        # trace 0: a área (só visual — não recebe clique)
+        # trace 0: a área (só visual)
         fig.add_trace(go.Scatter(
             x=ag["Ano de criação"], y=ag["Acum"],
             mode="lines", fill="tozeroy",
@@ -614,13 +628,24 @@ elif pag=="📋  Cadastro e Regularização":
             fillcolor="rgba(168,213,245,.45)",
             hoverinfo="skip", showlegend=False,
         ))
-        # trace 1: os pontos clicáveis, por cima da área
+        # trace 1: pontos visíveis
         fig.add_trace(go.Scatter(
             x=ag["Ano de criação"], y=ag["Acum"],
             mode="markers",
             marker=dict(color=cor_pt, size=tam_pt,
                         line=dict(color="white", width=1)),
-            hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>",
+            hoverinfo="skip", showlegend=False,
+        ))
+        # trace 2: barras transparentes que cobrem a coluna inteira do ano.
+        # É nelas que o clique acerta — alvo largo em vez de um ponto de 5px.
+        fig.add_trace(go.Bar(
+            x=ag["Ano de criação"],
+            y=[_ymax]*len(ag),
+            width=0.92,
+            marker=dict(color="rgba(0,0,0,0)",
+                        line=dict(width=0)),
+            customdata=ag["Acum"],
+            hovertemplate="<b>%{x}</b><br>%{customdata:,.0f} ha<extra></extra>",
             showlegend=False,
         ))
         for _,row in ag[ag["Ano de criação"].isin(
@@ -630,10 +655,10 @@ elif pag=="📋  Cadastro e Regularização":
                 showarrow=False,yshift=14,font_size=9,font_color="#444")
         fig.update_layout(**LY,height=300,
             dragmode="select", selectdirection="h",
-            clickmode="event+select",
-            # fixedrange no eixo X impede a seleção por arrasto — deixar False
+            clickmode="event+select", barmode="overlay", bargap=0,
             xaxis=dict(showgrid=False,fixedrange=False,title=""),
-            yaxis=dict(showgrid=True,gridcolor="#eee",title="ha",fixedrange=True))
+            yaxis=dict(showgrid=True,gridcolor="#eee",title="ha",
+                       fixedrange=True, range=[0,_ymax]))
         st.plotly_chart(fig, use_container_width=True, key="acum",
                         on_select="rerun", selection_mode=["points","box"],
                         config={"displayModeBar":False})
