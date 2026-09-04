@@ -605,14 +605,23 @@ elif pag=="📋  Cadastro e Regularização":
         tam_pt = [(9 if (anos_sel is not None and _on(a)) else 5)
                   for a in ag["Ano de criação"]]
 
-        fig=go.Figure(go.Scatter(
+        fig=go.Figure()
+        # trace 0: a área (só visual — não recebe clique)
+        fig.add_trace(go.Scatter(
             x=ag["Ano de criação"], y=ag["Acum"],
-            mode="lines+markers", fill="tozeroy",
+            mode="lines", fill="tozeroy",
             line=dict(color=AZUL_BORDA, width=2.2),
             fillcolor="rgba(168,213,245,.45)",
+            hoverinfo="skip", showlegend=False,
+        ))
+        # trace 1: os pontos clicáveis, por cima da área
+        fig.add_trace(go.Scatter(
+            x=ag["Ano de criação"], y=ag["Acum"],
+            mode="markers",
             marker=dict(color=cor_pt, size=tam_pt,
                         line=dict(color="white", width=1)),
             hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>",
+            showlegend=False,
         ))
         for _,row in ag[ag["Ano de criação"].isin(
                 [1960,1970,1980,1990,2000,2010,2020])].iterrows():
@@ -621,11 +630,22 @@ elif pag=="📋  Cadastro e Regularização":
                 showarrow=False,yshift=14,font_size=9,font_color="#444")
         fig.update_layout(**LY,height=300,
             dragmode="select", selectdirection="h",
-            xaxis=dict(showgrid=False,fixedrange=True,title=""),
+            clickmode="event+select",
+            # fixedrange no eixo X impede a seleção por arrasto — deixar False
+            xaxis=dict(showgrid=False,fixedrange=False,title=""),
             yaxis=dict(showgrid=True,gridcolor="#eee",title="ha",fixedrange=True))
         st.plotly_chart(fig, use_container_width=True, key="acum",
-                        on_select="rerun", selection_mode=("points","box"),
+                        on_select="rerun", selection_mode=["points","box"],
                         config={"displayModeBar":False})
+
+        with st.expander("🔧 Diagnóstico da seleção por ano", expanded=False):
+            st.caption("Se o filtro por ano não reagir, me mande o conteúdo abaixo.")
+            st.write("**Evento bruto (st.session_state['acum']):**")
+            st.json(st.session_state.get("acum", "nenhum evento ainda"))
+            st.write("**Anos lidos pelo _ev:**", _ev("acum", "x"))
+            st.write("**SEL['Ano de criação']:**", SEL.get("Ano de criação"))
+            st.write("**dtype da coluna:**", str(df0["Ano de criação"].dtype))
+            st.write("**Linhas após filtro:**", len(df))
 
 
 
