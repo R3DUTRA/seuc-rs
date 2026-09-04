@@ -621,10 +621,24 @@ elif pag=="📋  Cadastro e Regularização":
         ag=dt.groupby("Ano de criação")["Acum"].max().reset_index()
 
         anos_sel = SEL.get("Ano de criação")
-        _on = (lambda a: anos_sel is None or a in {int(float(x)) for x in anos_sel})
-        cor_pt = [(VERDE if _on(a) else "#c9c9c9") for a in ag["Ano de criação"]]
-        tam_pt = [(9 if (anos_sel is not None and _on(a)) else 5)
-                  for a in ag["Ano de criação"]]
+
+        # janela visível do eixo X: acompanha o filtro de ano
+        if anos_sel:
+            _sel_int = sorted({int(float(a)) for a in anos_sel})
+            x0, x1 = _sel_int[0], _sel_int[-1]
+            if x0 == x1:            # ano único: abre uma folga para dar contexto
+                x0, x1 = x0 - 2, x1 + 2
+            else:
+                folga = max(1, round((x1 - x0) * 0.04))
+                x0, x1 = x0 - folga, x1 + folga
+        else:
+            x0, x1 = int(ag["Ano de criação"].min()), int(ag["Ano de criação"].max())
+
+        # Y: base sempre em zero — truncar o eixo num gráfico de área distorce
+        # a leitura, porque a superfície preenchida sugere magnitude desde 0.
+        _vis = ag[(ag["Ano de criação"] >= x0) & (ag["Ano de criação"] <= x1)]
+        _ymax = float(_vis["Acum"].max()) if not _vis.empty else float(ag["Acum"].max())
+        y0, y1 = 0.0, _ymax * 1.15
 
         fig=go.Figure()
         # área
@@ -635,23 +649,28 @@ elif pag=="📋  Cadastro e Regularização":
             fillcolor="rgba(168,213,245,.45)",
             hoverinfo="skip", showlegend=False,
         ))
-        # pontos — destacam os anos que estão passando pelo filtro
+        # pontos
         fig.add_trace(go.Scatter(
             x=ag["Ano de criação"], y=ag["Acum"],
             mode="markers",
-            marker=dict(color=cor_pt, size=tam_pt,
+            marker=dict(color=VERDE, size=6,
                         line=dict(color="white", width=1)),
             hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>",
             showlegend=False,
         ))
-        for _,row in ag[ag["Ano de criação"].isin(
-                [1960,1970,1980,1990,2000,2010,2020])].iterrows():
-            fig.add_annotation(x=row["Ano de criação"],y=row["Acum"],
-                text=f"{row['Acum']/1000:.0f} Mil",
-                showarrow=False,yshift=14,font_size=9,font_color="#444")
+        # anotações: escolhidas dentro da janela visível
+        if not _vis.empty:
+            _n = min(6, len(_vis))
+            _passo = max(1, len(_vis)//_n)
+            for _,row in _vis.iloc[::_passo].iterrows():
+                fig.add_annotation(x=row["Ano de criação"],y=row["Acum"],
+                    text=f"{row['Acum']/1000:.0f} Mil",
+                    showarrow=False,yshift=14,font_size=9,font_color="#444")
         fig.update_layout(**LY,height=300, dragmode=False,
-            xaxis=dict(showgrid=False,fixedrange=True,title=""),
-            yaxis=dict(showgrid=True,gridcolor="#eee",title="ha",fixedrange=True))
+            xaxis=dict(showgrid=False,fixedrange=True,title="",
+                       range=[x0, x1]),
+            yaxis=dict(showgrid=True,gridcolor="#eee",title="ha",
+                       fixedrange=True, range=[y0, y1]))
         chart(fig,300,"acum")
 
 
