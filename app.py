@@ -69,21 +69,28 @@ st.markdown(f"""<style>
 /* seção */
 .st{{font-size:.9rem;font-weight:700;color:{VERDE};
   border-bottom:2px solid {AMAR};padding-bottom:3px;margin:14px 0 6px;}}
-/* glassmorphism nos charts e tabelas */
+/* glassmorphism nos charts e tabelas + moldura cinza clara arredondada */
 [data-testid="stPlotlyChart"]>div{{
   background:rgba(255,255,255,.52)!important;
   backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;
-  border-radius:10px!important;}}
+  border:1px solid #dcdcdc!important;
+  border-radius:12px!important;
+  padding:6px!important;
+  overflow:hidden!important;
+  box-shadow:0 1px 3px rgba(0,0,0,.04)!important;}}
 [data-testid="stDataFrame"]>div{{
   background:rgba(255,255,255,.62)!important;
-  backdrop-filter:blur(10px)!important;border-radius:10px!important;}}
+  backdrop-filter:blur(10px)!important;
+  border:1px solid #dcdcdc!important;
+  border-radius:12px!important;
+  overflow:hidden!important;
+  box-shadow:0 1px 3px rgba(0,0,0,.04)!important;}}
 [data-testid="stExpander"]{{background:rgba(255,255,255,.62)!important;
-  backdrop-filter:blur(12px)!important;border-radius:8px!important;
-  border:1px solid rgba(200,200,200,.5)!important;}}
+  backdrop-filter:blur(12px)!important;border-radius:12px!important;
+  border:1px solid #dcdcdc!important;}}
 
 /* ═══ ELIMINAR TODA barra de rolagem dos gráficos Plotly ═══ */
 [data-testid="stPlotlyChart"],
-[data-testid="stPlotlyChart"]>div,
 [data-testid="stPlotlyChart"] .stPlotlyChart,
 [data-testid="stPlotlyChart"] .js-plotly-plot,
 [data-testid="stPlotlyChart"] .plot-container,
@@ -567,9 +574,8 @@ elif pag=="📋  Cadastro e Regularização":
         sel_aqui = SEL.get("Categoria SNUC")
         _on = (lambda c: sel_aqui is None or str(c) in {str(x) for x in sel_aqui})
         fill   = [(AZUL_CLARO if _on(c) else CINZA_OFF)   for c in d["cat"]]
-        borda  = [(AZUL_BORDA if _on(c) else "#c4c4c4")   for c in d["cat"]]
         fig=go.Figure(go.Bar(x=d["cat"],y=d["n"],
-            marker=dict(color=fill, line=dict(color=borda, width=2.2)),
+            marker=dict(color=fill, line=dict(width=0)),
             text=d["n"],textposition="outside",textfont_size=11,
             hovertemplate="<b>%{x}</b> — %{y}<extra></extra>"))
         fig.update_layout(**LY, height=360, bargap=0, dragmode=False,
@@ -588,9 +594,8 @@ elif pag=="📋  Cadastro e Regularização":
         sel_aqui = SEL.get("Bioma")
         _on = (lambda b: sel_aqui is None or str(b) in {str(x) for x in sel_aqui})
         fill  = [(AZUL_CLARO if _on(b) else CINZA_OFF) for b in d["b"]]
-        borda = [(AZUL_BORDA if _on(b) else "#c4c4c4") for b in d["b"]]
         fig=go.Figure(go.Bar(x=d["n"],y=d["b"],orientation="h",
-            marker=dict(color=fill, line=dict(color=borda, width=2.2)),
+            marker=dict(color=fill, line=dict(width=0)),
             text=d["n"],textposition="outside",textfont_size=11,
             hovertemplate="<b>%{y}</b> — %{x}<extra></extra>"))
         fig.update_layout(**LY, height=360, dragmode=False,
