@@ -351,8 +351,13 @@ elif pag=="📋  Cadastro e Regularização":
 
         _an = pd.to_numeric(base["Ano de criação"], errors="coerce").dropna()
         ANO_MIN, ANO_MAX = int(_an.min()), int(_an.max())
-        periodo = st.slider("Período de criação", ANO_MIN, ANO_MAX,
-                            (ANO_MIN, ANO_MAX), key="cr_per")
+        pc1, pc2 = st.columns([3,2])
+        periodo = pc1.slider("Período de criação", ANO_MIN, ANO_MAX,
+                             (ANO_MIN, ANO_MAX), key="cr_per")
+        anos_esp = pc2.multiselect(
+            "Ano específico",
+            sorted(_an.astype(int).unique(), reverse=True),
+            placeholder="Todos os anos do período", key="cr_ano")
 
     df0 = base.copy()
     if fb: df0=df0[df0["Bioma"].isin(fb)]
@@ -391,14 +396,19 @@ elif pag=="📋  Cadastro e Regularização":
         _v = _ev(_k,_campo)
         if _v is not None:
             SEL[_c] = _v
-    # Ano: combina o slider de período com o clique/arrasto no gráfico
-    _anos_click  = _ev("acum", "x")
+    # Ano: slider de período + seleção de anos avulsos (sem interação no gráfico)
     _slider_ativo = (periodo[0] != ANO_MIN or periodo[1] != ANO_MAX)
-    if _anos_click:
-        _alvo = [a for a in _anos_click
-                 if periodo[0] <= float(a) <= periodo[1]] if _slider_ativo else _anos_click
+    if anos_esp:
+        _alvo = [a for a in anos_esp if periodo[0] <= a <= periodo[1]] \
+                if _slider_ativo else list(anos_esp)
         if _alvo:
             SEL["Ano de criação"] = _alvo
+        else:
+            st.warning(
+                f"Os anos escolhidos ({', '.join(str(a) for a in anos_esp)}) estão "
+                f"fora do período {periodo[0]}–{periodo[1]}. "
+                f"Ajuste o slider ou troque os anos.")
+            SEL["Ano de criação"] = [-1]     # nenhum resultado, em vez de todos
     elif _slider_ativo:
         SEL["Ano de criação"] = list(range(periodo[0], periodo[1]+1))
 
@@ -459,7 +469,6 @@ elif pag=="📋  Cadastro e Regularização":
                 st.session_state.pop(f"xf_{_c}", None)
             for _k in XF_BARRA:
                 st.session_state.pop(_k, None)
-            st.session_state.pop("acum", None)
             st.rerun()
 
     # ── KPIs ──────────────────────────────────────────────────────────────────
@@ -600,7 +609,7 @@ elif pag=="📋  Cadastro e Regularização":
                  use_container_width=True,height=240)
 
     # ── área acumulada (clicável: ponto = ano, arrasto = intervalo) ───────────
-    sec("Área acumulada (ha)  ·  clique num ano ou arraste para um período")
+    sec("Área acumulada (ha)")
     d_ac = xfilter(df0, exceto="Ano de criação")
     dt = d_ac.dropna(subset=["Ano de criação"]).copy()
     if dt.empty:
@@ -617,10 +626,8 @@ elif pag=="📋  Cadastro e Regularização":
         tam_pt = [(9 if (anos_sel is not None and _on(a)) else 5)
                   for a in ag["Ano de criação"]]
 
-        _ymax = float(ag["Acum"].max()) * 1.12
-
         fig=go.Figure()
-        # trace 0: a área (só visual)
+        # área
         fig.add_trace(go.Scatter(
             x=ag["Ano de criação"], y=ag["Acum"],
             mode="lines", fill="tozeroy",
@@ -628,24 +635,13 @@ elif pag=="📋  Cadastro e Regularização":
             fillcolor="rgba(168,213,245,.45)",
             hoverinfo="skip", showlegend=False,
         ))
-        # trace 1: pontos visíveis
+        # pontos — destacam os anos que estão passando pelo filtro
         fig.add_trace(go.Scatter(
             x=ag["Ano de criação"], y=ag["Acum"],
             mode="markers",
             marker=dict(color=cor_pt, size=tam_pt,
                         line=dict(color="white", width=1)),
-            hoverinfo="skip", showlegend=False,
-        ))
-        # trace 2: barras transparentes que cobrem a coluna inteira do ano.
-        # É nelas que o clique acerta — alvo largo em vez de um ponto de 5px.
-        fig.add_trace(go.Bar(
-            x=ag["Ano de criação"],
-            y=[_ymax]*len(ag),
-            width=0.92,
-            marker=dict(color="rgba(0,0,0,0)",
-                        line=dict(width=0)),
-            customdata=ag["Acum"],
-            hovertemplate="<b>%{x}</b><br>%{customdata:,.0f} ha<extra></extra>",
+            hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>",
             showlegend=False,
         ))
         for _,row in ag[ag["Ano de criação"].isin(
@@ -653,25 +649,10 @@ elif pag=="📋  Cadastro e Regularização":
             fig.add_annotation(x=row["Ano de criação"],y=row["Acum"],
                 text=f"{row['Acum']/1000:.0f} Mil",
                 showarrow=False,yshift=14,font_size=9,font_color="#444")
-        fig.update_layout(**LY,height=300,
-            dragmode="select", selectdirection="h",
-            clickmode="event+select", barmode="overlay", bargap=0,
-            xaxis=dict(showgrid=False,fixedrange=False,title=""),
-            yaxis=dict(showgrid=True,gridcolor="#eee",title="ha",
-                       fixedrange=True, range=[0,_ymax]))
-        st.plotly_chart(fig, use_container_width=True, key="acum",
-                        on_select="rerun", selection_mode=["points","box"],
-                        config={"displayModeBar":False})
-
-        with st.expander("🔧 Diagnóstico da seleção por ano", expanded=False):
-            st.caption("Se o filtro por ano não reagir, me mande o conteúdo abaixo.")
-            st.write("**Evento bruto (st.session_state['acum']):**")
-            st.json(st.session_state.get("acum", "nenhum evento ainda"))
-            st.write("**Anos lidos pelo _ev:**", _ev("acum", "x"))
-            st.write("**SEL['Ano de criação']:**", SEL.get("Ano de criação"))
-            st.write("**dtype da coluna:**", str(df0["Ano de criação"].dtype))
-            st.write("**Linhas após filtro:**", len(df))
-
+        fig.update_layout(**LY,height=300, dragmode=False,
+            xaxis=dict(showgrid=False,fixedrange=True,title=""),
+            yaxis=dict(showgrid=True,gridcolor="#eee",title="ha",fixedrange=True))
+        chart(fig,300,"acum")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
